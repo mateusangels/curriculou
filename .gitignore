@@ -1,10 +1,7 @@
 node_modules/
-dist/
 .env
 .env.*
 !.env.example
 *.log
 .DS_Store
 .vite/
-cvzap-backend/node_modules/
-cvzap-backend/.env

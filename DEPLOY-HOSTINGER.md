@@ -1,74 +1,63 @@
-# Deploy do CVZap na Hostinger
+# Deploy do Curriculou na Hostinger (app ÚNICO)
 
-São duas partes: **frontend** (o app) e **backend** (pagamento Mercado Pago).
-Dá pra subir só o frontend primeiro (já libera a URL que o Mercado Pago exige) e o backend depois.
-
----
-
-## Parte 1 — Frontend (o app)
-
-> Opção da Hostinger: **Adicionar site → Site PHP/HTML personalizado**
-
-1. No seu PC, gere o build:
-   ```
-   npm install
-   npm run build
-   ```
-   Isso cria a pasta **`dist/`**.
-
-2. Na Hostinger, em "Site PHP/HTML personalizado", faça **upload de TODO o conteúdo de `dist/`** para a pasta pública do site (`public_html`).
-   - O arquivo **`.htaccess`** já vai junto (faz a rota `/cvzap` funcionar).
-
-3. Pronto. Acesse: `https://seudominio.com/cvzap`
-
-> ✅ Essa URL (`https://seudominio.com`) é a que você coloca no campo **"Site (obrigatório)"** do Mercado Pago.
-> Observação: o app inteiro sobe junto; o produto CVZap fica em **/cvzap**. Se quiser o CVZap na raiz do domínio, me avise que eu separo num build próprio.
+Um único app Node serve **o site + a API de pagamento**, usando o **MySQL da Hostinger**.
+Você sobe **uma coisa só**: opção **Adicionar site → Web app Node.js**.
 
 ---
 
-## Parte 2 — Backend de pagamento (Mercado Pago)
+## Passo 1 — Criar o banco MySQL (hPanel)
+1. hPanel → **Bancos de Dados MySQL**.
+2. Crie um banco e um usuário (anote **nome do banco, usuário e senha**).
+3. Dê todos os privilégios do usuário sobre o banco.
+4. A tabela `pedidos` é criada sozinha quando o app sobe.
 
-> Opção da Hostinger: **Adicionar site → Web app Node.js**
+## Passo 2 — Subir o app Node
+1. **Adicionar site → Web app Node.js** e conecte o repositório GitHub `curriculou`
+   (ou faça upload dos arquivos).
+2. **Arquivo de inicialização (startup file):** `server.js`
+3. A Hostinger roda `npm install` e depois `npm start`.
+   - O site já vai junto: o `dist/` (build do front) está **versionado no repositório**,
+     então **não precisa buildar no servidor**.
+   - (Se você alterar o front, rode `npm run build` no seu PC e dê commit do `dist/` de novo.)
 
-1. Suba a pasta **`cvzap-backend/`** (via GitHub ou upload dos arquivos).
-2. A Hostinger roda `npm install` e `npm start` automaticamente.
-3. Configure as **variáveis de ambiente** (no painel do app Node, ou num arquivo `.env`):
-   - `MP_ACCESS_TOKEN` → seu **Access Token de produção** do Mercado Pago
-     (Mercado Pago → Suas integrações → sua aplicação → Credenciais de produção)
-   - `FRONTEND_URL` → `https://seudominio.com`
-   - `BACKEND_URL` → a URL pública deste backend (ex.: `https://api.seudominio.com`)
-4. Anote a URL pública do backend.
+## Passo 3 — Variáveis de ambiente
+No painel do app Node (Environment Variables), preencha:
 
-### Configurar o webhook no Mercado Pago
-No painel do MP, em **Webhooks/Notificações**, aponte para:
+| Variável | Valor |
+|---|---|
+| `MP_ACCESS_TOKEN` | Access Token de **produção** do Mercado Pago |
+| `FRONTEND_URL` | `https://seudominio.com` |
+| `BACKEND_URL` | `https://seudominio.com` |
+| `DB_HOST` | host do MySQL (geralmente `localhost`) |
+| `DB_USER` | usuário do banco |
+| `DB_PASS` | senha do banco |
+| `DB_NAME` | nome do banco |
+
+## Passo 4 — Webhook do Mercado Pago
+No painel do MP → Webhooks, aponte para:
 ```
-https://SEU-BACKEND/api/webhook
+https://seudominio.com/api/webhook
 ```
 
----
-
-## Parte 3 — Ligar o pagamento real no frontend
-
-Hoje o pagamento está em **modo demonstração** (sempre aprova) para funcionar local.
-Para usar o Mercado Pago de verdade:
-
-1. Crie um arquivo **`.env`** na raiz do frontend com:
-   ```
-   VITE_API_URL=https://SEU-BACKEND
-   ```
-2. No componente `src/cvzap/components/editor/PaywallModal.tsx`, troque a função `pagar()`
-   para usar `iniciarCheckout(comFoto, promo)` (de `lib/pagamento.ts`) em vez do `cobrar()` mock.
-   - `iniciarCheckout` redireciona para o Checkout Pro do Mercado Pago.
-   - Ao voltar, o app confere o pagamento com `verificarPago(id)` e libera o download.
-3. `npm run build` de novo e suba o `dist/` atualizado.
-
-> Me chame que eu faço essa troca (passo 2) quando o backend estiver no ar.
+## Pronto
+- Site: `https://seudominio.com`
+- API: `https://seudominio.com/api/...` (mesmo domínio)
+- Essa URL (`https://seudominio.com`) é a que vai no campo **"Site (obrigatório)"**
+  do cadastro de credenciais do Mercado Pago (Setor: Serviços de TI).
 
 ---
 
-## Checklist rápido
-- [ ] `npm run build` e subir `dist/` (Site PHP/HTML) → pega a URL
-- [ ] Cadastrar credenciais de produção no MP usando essa URL (Setor: Serviços de TI)
-- [ ] Subir `cvzap-backend/` (Web app Node.js) + variáveis de ambiente
-- [ ] Configurar webhook `/api/webhook` no MP
-- [ ] Criar `.env` do frontend com `VITE_API_URL` e ligar o checkout real
+## Ligar o pagamento real (quando estiver tudo no ar)
+O front já chama a API no **mesmo domínio** (não precisa configurar URL).
+Falta só trocar o botão de pagar (hoje em modo demo) para usar o Checkout Pro:
+em `src/cvzap/components/editor/PaywallModal.tsx`, usar `iniciarCheckout(comFoto, promo)`
+de `src/cvzap/lib/pagamento.ts`. Me chame que eu faço essa troca.
+
+## Rodar local
+```bash
+npm install
+npm run build   # gera o dist/
+npm start       # serve em http://localhost:3333  (sem DB = usa memória)
+# ou, só o front em dev:
+npm run dev     # http://localhost:5180
+```
