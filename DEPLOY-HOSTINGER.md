@@ -32,6 +32,13 @@ No painel do app Node (Environment Variables), preencha:
 | `DB_USER` | usuário do banco |
 | `DB_PASS` | senha do banco |
 | `DB_NAME` | nome do banco |
+| `JWT_SECRET` | **(novo)** segredo longo e aleatório p/ o login (contas). **Obrigatório** — sem ele usa um segredo de dev inseguro. |
+| `FIREBASE_PROJECT_ID` | **(novo, opcional)** `curriculou-7439c` (já é o padrão; só defina se trocar de projeto Firebase) |
+
+> As tabelas `usuarios` e `curriculos` (contas + histórico) são criadas sozinhas no primeiro acesso, igual a `pedidos`.
+
+### Login com Google (Firebase)
+No **console.firebase.google.com → Authentication → Settings → Authorized domains**, adicione o seu domínio de produção (`seudominio.com`). Sem isso, o popup do Google não abre em produção (em `localhost` já funciona).
 
 ## Passo 4 — Webhook do Mercado Pago
 No painel do MP → Webhooks, aponte para:
@@ -47,11 +54,10 @@ https://seudominio.com/api/webhook
 
 ---
 
-## Ligar o pagamento real (quando estiver tudo no ar)
-O front já chama a API no **mesmo domínio** (não precisa configurar URL).
-Falta só trocar o botão de pagar (hoje em modo demo) para usar o Checkout Pro:
-em `src/cvzap/components/editor/PaywallModal.tsx`, usar `iniciarCheckout(comFoto, promo)`
-de `src/cvzap/lib/pagamento.ts`. Me chame que eu faço essa troca.
+## Pagamento real
+Já está ligado: o paywall chama o **Checkout Pro** do Mercado Pago via `iniciarCheckout(plano)`
+(em `src/cvzap/lib/pagamento.ts`), no **mesmo domínio**. Basta o `MP_ACCESS_TOKEN` de produção
+estar definido. Sem token, cai em modo demonstração (baixa direto).
 
 ## Rodar local
 ```bash

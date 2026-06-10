@@ -7,10 +7,16 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-troque-em-producao';
+const JWT_EXPIRA = '30d';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(express.json());
+// limite alto: o snapshot do currículo pode incluir a foto em base64 (>100kb)
+app.use(express.json({ limit: '6mb' }));
 app.use(cors());
 
 const PORT = process.env.PORT || 3333;
@@ -29,13 +35,14 @@ async function getMercadoPago() {
   return { client: new MP({ accessToken: process.env.MP_ACCESS_TOKEN }), Preference, Payment };
 }
 
-const PRECO_COM_FOTO = 4.0;
-const PRECO_SEM_FOTO = 3.5;
-const PRECO_PROMO = 2.9;
+const PRECO_INDIVIDUAL = 4.9; // 1 download, sem marca d'água
+const PRECO_RETENCAO = 7.9;   // oferta de retenção (cancelamento)
 
 // ── Banco (MySQL da Hostinger) com fallback para memória ─────────────────────
 let pool = null;
-const mem = new Map();
+const mem = new Map();          // pedidos
+const memUsers = new Map();     // usuarios (email -> registro) no modo memória
+const memCurriculos = new Map(); // curriculos (id -> registro) no modo memória
 
 async function initDb() {
   if (!process.env.DB_HOST) {
@@ -58,7 +65,30 @@ async function initDb() {
       pago TINYINT NOT NULL DEFAULT 0,
       valor DECIMAL(10,2) NOT NULL,
       com_foto TINYINT NOT NULL DEFAULT 0,
+      snapshot LONGTEXT NULL,
       criado_em BIGINT NOT NULL
+    )`);
+    // migra tabelas antigas que ainda não têm a coluna snapshot
+    try { await pool.query('ALTER TABLE pedidos ADD COLUMN snapshot LONGTEXT NULL'); }
+    catch { /* coluna já existe */ }
+    await pool.query(`CREATE TABLE IF NOT EXISTS usuarios (
+      id VARCHAR(40) PRIMARY KEY,
+      nome VARCHAR(120) NOT NULL,
+      email VARCHAR(190) NOT NULL UNIQUE,
+      senha_hash VARCHAR(120) NOT NULL,
+      plano VARCHAR(20) NOT NULL DEFAULT 'free',
+      google_id VARCHAR(60) NULL,
+      criado_em BIGINT NOT NULL
+    )`);
+    try { await pool.query('ALTER TABLE usuarios ADD COLUMN google_id VARCHAR(60) NULL'); }
+    catch { /* coluna já existe */ }
+    await pool.query(`CREATE TABLE IF NOT EXISTS curriculos (
+      id VARCHAR(40) PRIMARY KEY,
+      user_id VARCHAR(40) NOT NULL,
+      titulo VARCHAR(160) NOT NULL,
+      snapshot LONGTEXT NOT NULL,
+      atualizado_em BIGINT NOT NULL,
+      INDEX idx_user (user_id)
     )`);
     console.log('✅ MySQL conectado.');
   } catch (e) {
@@ -67,9 +97,10 @@ async function initDb() {
   }
 }
 
-async function salvarPedido(id, valor, comFoto) {
-  if (pool) await pool.query('INSERT INTO pedidos (id,pago,valor,com_foto,criado_em) VALUES (?,?,?,?,?)', [id, 0, valor, comFoto ? 1 : 0, Date.now()]);
-  else mem.set(id, { pago: false, valor, comFoto });
+async function salvarPedido(id, valor, comFoto, snapshot) {
+  const snapStr = snapshot ? JSON.stringify(snapshot) : null;
+  if (pool) await pool.query('INSERT INTO pedidos (id,pago,valor,com_foto,snapshot,criado_em) VALUES (?,?,?,?,?,?)', [id, 0, valor, comFoto ? 1 : 0, snapStr, Date.now()]);
+  else mem.set(id, { pago: false, valor, comFoto, snapshot: snapStr });
 }
 async function marcarPago(id) {
   if (pool) await pool.query('UPDATE pedidos SET pago=1 WHERE id=?', [id]);
@@ -79,24 +110,226 @@ async function estaPago(id) {
   if (pool) { const [r] = await pool.query('SELECT pago FROM pedidos WHERE id=?', [id]); return !!(r[0] && r[0].pago); }
   const p = mem.get(id); return !!(p && p.pago);
 }
+// Retorna { pago, snapshot } — o snapshot só vai junto se o pedido estiver pago.
+async function buscarPedido(id) {
+  let pago = false, snapStr = null;
+  if (pool) {
+    const [r] = await pool.query('SELECT pago, snapshot FROM pedidos WHERE id=?', [id]);
+    if (r[0]) { pago = !!r[0].pago; snapStr = r[0].snapshot; }
+  } else {
+    const p = mem.get(id);
+    if (p) { pago = !!p.pago; snapStr = p.snapshot; }
+  }
+  let snapshot;
+  if (pago && snapStr) { try { snapshot = JSON.parse(snapStr); } catch { /* corrompido */ } }
+  return { pago, snapshot };
+}
 
 const novoId = () => 'cv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+const novoUserId = () => 'usr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const FRONT = process.env.FRONTEND_URL || '';
+
+// ── Usuários ────────────────────────────────────────────────────────────────
+const normEmail = (e) => String(e || '').trim().toLowerCase();
+
+async function buscarUsuarioPorEmail(email) {
+  const e = normEmail(email);
+  if (pool) { const [r] = await pool.query('SELECT * FROM usuarios WHERE email=?', [e]); return r[0] || null; }
+  return memUsers.get(e) || null;
+}
+async function buscarUsuarioPorId(id) {
+  if (pool) { const [r] = await pool.query('SELECT * FROM usuarios WHERE id=?', [id]); return r[0] || null; }
+  for (const u of memUsers.values()) if (u.id === id) return u;
+  return null;
+}
+async function criarUsuario(nome, email, senha) {
+  const e = normEmail(email);
+  const id = novoUserId();
+  const senha_hash = await bcrypt.hash(senha, 10);
+  const reg = { id, nome: String(nome).trim(), email: e, senha_hash, plano: 'free', criado_em: Date.now() };
+  if (pool) await pool.query('INSERT INTO usuarios (id,nome,email,senha_hash,plano,criado_em) VALUES (?,?,?,?,?,?)', [reg.id, reg.nome, reg.email, reg.senha_hash, reg.plano, reg.criado_em]);
+  else memUsers.set(e, reg);
+  return reg;
+}
+
+const tokenDoUsuario = (u) => jwt.sign({ sub: u.id }, JWT_SECRET, { expiresIn: JWT_EXPIRA });
+const usuarioPublico = (u) => ({ id: u.id, nome: u.nome, email: u.email, plano: u.plano });
+
+// middleware: exige Bearer token válido; injeta req.usuario
+async function exigirAuth(req, res, next) {
+  try {
+    const h = req.headers.authorization || '';
+    const tok = h.startsWith('Bearer ') ? h.slice(7) : null;
+    if (!tok) return res.status(401).json({ erro: 'não autenticado' });
+    const { sub } = jwt.verify(tok, JWT_SECRET);
+    const u = await buscarUsuarioPorId(sub);
+    if (!u) return res.status(401).json({ erro: 'sessão inválida' });
+    req.usuario = u;
+    next();
+  } catch {
+    res.status(401).json({ erro: 'sessão inválida' });
+  }
+}
+
+// ── Auth API ──────────────────────────────────────────────────────────────────
+app.post('/api/auth/registrar', async (req, res) => {
+  try {
+    const { nome, email, senha } = req.body || {};
+    if (!nome || !email || !senha) return res.status(400).json({ erro: 'Preencha nome, e-mail e senha.' });
+    if (String(senha).length < 6) return res.status(400).json({ erro: 'A senha precisa ter ao menos 6 caracteres.' });
+    if (await buscarUsuarioPorEmail(email)) return res.status(409).json({ erro: 'Já existe uma conta com esse e-mail.' });
+    const u = await criarUsuario(nome, email, senha);
+    res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
+  } catch (e) {
+    console.error('registrar', e);
+    res.status(500).json({ erro: 'Falha ao criar conta' });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, senha } = req.body || {};
+    const u = await buscarUsuarioPorEmail(email);
+    if (!u || !(await bcrypt.compare(String(senha || ''), u.senha_hash))) {
+      return res.status(401).json({ erro: 'E-mail ou senha incorretos.' });
+    }
+    res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
+  } catch (e) {
+    console.error('login', e);
+    res.status(500).json({ erro: 'Falha ao entrar' });
+  }
+});
+
+app.get('/api/auth/me', exigirAuth, (req, res) => {
+  res.json({ usuario: usuarioPublico(req.usuario) });
+});
+
+// ── Login com Google (valida o ID token do Firebase com as chaves PÚBLICAS do Google) ─
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || 'curriculou-7439c';
+const CERTS_URL = 'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com';
+let certsCache = { data: null, exp: 0 };
+
+async function getGoogleCerts() {
+  if (certsCache.data && Date.now() < certsCache.exp) return certsCache.data;
+  const r = await fetch(CERTS_URL);
+  const data = await r.json();
+  const m = (r.headers.get('cache-control') || '').match(/max-age=(\d+)/);
+  certsCache = { data, exp: Date.now() + (m ? Number(m[1]) * 1000 : 3600000) };
+  return data;
+}
+
+async function verificarTokenGoogle(idToken) {
+  const decoded = jwt.decode(idToken, { complete: true });
+  if (!decoded?.header?.kid) throw new Error('token inválido');
+  const cert = (await getGoogleCerts())[decoded.header.kid];
+  if (!cert) throw new Error('chave não encontrada');
+  return jwt.verify(idToken, cert, {
+    algorithms: ['RS256'],
+    audience: FIREBASE_PROJECT_ID,
+    issuer: `https://securetoken.google.com/${FIREBASE_PROJECT_ID}`,
+  });
+}
+
+async function acharOuCriarGoogle(payload) {
+  const email = normEmail(payload.email);
+  const existente = await buscarUsuarioPorEmail(email);
+  if (existente) return existente;
+  const reg = {
+    id: novoUserId(), nome: String(payload.name || email.split('@')[0]).slice(0, 120),
+    email, senha_hash: '', plano: 'free', google_id: payload.sub || payload.user_id || '', criado_em: Date.now(),
+  };
+  if (pool) await pool.query('INSERT INTO usuarios (id,nome,email,senha_hash,plano,google_id,criado_em) VALUES (?,?,?,?,?,?,?)', [reg.id, reg.nome, reg.email, reg.senha_hash, reg.plano, reg.google_id, reg.criado_em]);
+  else memUsers.set(email, reg);
+  return reg;
+}
+
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken) return res.status(400).json({ erro: 'token ausente' });
+    const payload = await verificarTokenGoogle(idToken);
+    if (!payload.email) return res.status(400).json({ erro: 'Conta Google sem e-mail.' });
+    const u = await acharOuCriarGoogle(payload);
+    res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
+  } catch (e) {
+    console.error('google login', e);
+    res.status(401).json({ erro: 'Falha ao validar o login do Google' });
+  }
+});
+
+// ── Currículos (histórico por usuário) ────────────────────────────────────────
+const novoCurId = () => 'cur_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
+async function listarCurriculos(userId) {
+  if (pool) { const [r] = await pool.query('SELECT id,titulo,atualizado_em FROM curriculos WHERE user_id=? ORDER BY atualizado_em DESC', [userId]); return r; }
+  return [...memCurriculos.values()].filter((c) => c.user_id === userId)
+    .map(({ id, titulo, atualizado_em }) => ({ id, titulo, atualizado_em }))
+    .sort((a, b) => b.atualizado_em - a.atualizado_em);
+}
+async function obterCurriculo(userId, id) {
+  if (pool) { const [r] = await pool.query('SELECT * FROM curriculos WHERE id=? AND user_id=?', [id, userId]); return r[0] || null; }
+  const c = memCurriculos.get(id); return c && c.user_id === userId ? c : null;
+}
+async function salvarCurriculo(userId, titulo, snapshot, id) {
+  const snapStr = JSON.stringify(snapshot || {});
+  const t = String(titulo || 'Currículo').slice(0, 160);
+  if (id) {
+    const ex = await obterCurriculo(userId, id);
+    if (!ex) return null;
+    if (pool) await pool.query('UPDATE curriculos SET titulo=?,snapshot=?,atualizado_em=? WHERE id=? AND user_id=?', [t, snapStr, Date.now(), id, userId]);
+    else memCurriculos.set(id, { ...ex, titulo: t, snapshot: snapStr, atualizado_em: Date.now() });
+    return { id, titulo: t };
+  }
+  const novo = novoCurId();
+  if (pool) await pool.query('INSERT INTO curriculos (id,user_id,titulo,snapshot,atualizado_em) VALUES (?,?,?,?,?)', [novo, userId, t, snapStr, Date.now()]);
+  else memCurriculos.set(novo, { id: novo, user_id: userId, titulo: t, snapshot: snapStr, atualizado_em: Date.now() });
+  return { id: novo, titulo: t };
+}
+async function excluirCurriculo(userId, id) {
+  if (pool) await pool.query('DELETE FROM curriculos WHERE id=? AND user_id=?', [id, userId]);
+  else { const c = memCurriculos.get(id); if (c && c.user_id === userId) memCurriculos.delete(id); }
+}
+
+app.get('/api/curriculos', exigirAuth, async (req, res) => {
+  try { res.json({ curriculos: await listarCurriculos(req.usuario.id) }); }
+  catch (e) { console.error('listar curriculos', e); res.status(500).json({ erro: 'Falha ao listar' }); }
+});
+app.post('/api/curriculos', exigirAuth, async (req, res) => {
+  try {
+    const { titulo, snapshot, id } = req.body || {};
+    const r = await salvarCurriculo(req.usuario.id, titulo, snapshot, id);
+    if (!r) return res.status(404).json({ erro: 'Currículo não encontrado' });
+    res.json(r);
+  } catch (e) { console.error('salvar curriculo', e); res.status(500).json({ erro: 'Falha ao salvar' }); }
+});
+app.get('/api/curriculos/:id', exigirAuth, async (req, res) => {
+  try {
+    const c = await obterCurriculo(req.usuario.id, req.params.id);
+    if (!c) return res.status(404).json({ erro: 'não encontrado' });
+    let snapshot; try { snapshot = JSON.parse(c.snapshot); } catch { snapshot = null; }
+    res.json({ id: c.id, titulo: c.titulo, atualizado_em: c.atualizado_em, snapshot });
+  } catch (e) { console.error('obter curriculo', e); res.status(500).json({ erro: 'Falha' }); }
+});
+app.delete('/api/curriculos/:id', exigirAuth, async (req, res) => {
+  try { await excluirCurriculo(req.usuario.id, req.params.id); res.json({ ok: true }); }
+  catch (e) { console.error('excluir curriculo', e); res.status(500).json({ erro: 'Falha ao excluir' }); }
+});
 
 // ── API ───────────────────────────────────────────────────────────────────────
 app.post('/api/criar-pagamento', async (req, res) => {
   try {
-    const { comFoto = false, promo = false } = req.body || {};
-    const valor = promo ? PRECO_PROMO : (comFoto ? PRECO_COM_FOTO : PRECO_SEM_FOTO);
+    const { plano = 'individual', snapshot = null } = req.body || {};
+    const valor = plano === 'retencao' ? PRECO_RETENCAO : PRECO_INDIVIDUAL;
+    const titulo = plano === 'retencao' ? 'Curriculou — oferta 30 dias' : 'Currículo Curriculou (PDF sem marca d\'água)';
     const mp = await getMercadoPago();
     if (!mp) return res.status(503).json({ erro: 'Pagamento ainda não configurado (defina MP_ACCESS_TOKEN).' });
 
     const id = novoId();
-    await salvarPedido(id, valor, comFoto);
+    await salvarPedido(id, valor, plano === 'retencao', snapshot);
 
     const pref = await new mp.Preference(mp.client).create({
       body: {
-        items: [{ id: 'curriculo', title: comFoto ? 'Currículo Curriculou (com foto)' : 'Currículo Curriculou', quantity: 1, unit_price: Number(valor), currency_id: 'BRL' }],
+        items: [{ id: 'curriculo', title: titulo, quantity: 1, unit_price: Number(valor), currency_id: 'BRL' }],
         external_reference: id,
         notification_url: `${process.env.BACKEND_URL || FRONT}/api/webhook`,
         back_urls: {
@@ -134,8 +367,23 @@ app.get('/api/status/:id', async (req, res) => {
   res.json({ pago: await estaPago(req.params.id) });
 });
 
-// (teste local) aprova manualmente
-app.post('/api/_teste-aprovar/:id', async (req, res) => { await marcarPago(req.params.id); res.json({ ok: true }); });
+// Pedido completo: { pago, snapshot } — usado para recuperar/baixar o currículo.
+app.get('/api/pedido/:id', async (req, res) => {
+  try {
+    res.json(await buscarPedido(req.params.id));
+  } catch (e) {
+    console.error('pedido', e);
+    res.status(500).json({ pago: false });
+  }
+});
+
+// (apenas teste) aprova manualmente — DESLIGADO por padrão para não virar
+// um buraco de dinheiro. Habilite com ALLOW_TEST_APPROVE=1 só em ambiente local.
+app.post('/api/_teste-aprovar/:id', async (req, res) => {
+  if (process.env.ALLOW_TEST_APPROVE !== '1') return res.sendStatus(404);
+  await marcarPago(req.params.id);
+  res.json({ ok: true });
+});
 
 // ── Front (SPA) ───────────────────────────────────────────────────────────────
 const DIST = path.join(__dirname, 'dist');

@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Plus, Trash2, Upload, X } from 'lucide-react';
+import { Plus, Trash2, Upload, X, Maximize2 } from 'lucide-react';
 import type { CurriculoData, Experiencia, Formacao, Curso } from '../../types';
 import { gerarId } from '../../engine/parsers';
 import {
@@ -26,6 +26,7 @@ interface Props {
   sections: SectionsConfig;
   foto?: string;
   onFoto: (f: string | undefined) => void;
+  onFotoTamanho?: (px: number) => void;
 }
 
 const MINUSC = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em']);
@@ -109,24 +110,60 @@ const EDIT_CSS = `
   .cv-edit:hover { background: rgba(79,70,229,.08); border-radius: 4px; }
   .cv-edit:focus { background: rgba(79,70,229,.14); box-shadow: 0 0 0 2px rgba(79,70,229,.55); border-radius: 4px; }
   .cv-grp { position: relative; }
-  .cv-del { position: absolute; right: -4px; top: -4px; width: 20px; height: 20px; border-radius: 50%; background: #ef4444; color: #fff; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 5; }
-  .cv-grp:hover > .cv-del { display: flex; }
-  .cv-addbtn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: #4f46e5; cursor: pointer; border: 1px dashed #4f46e555; border-radius: 6px; padding: 3px 8px; margin-top: 4px; background: #4f46e50d; }
+  .cv-del { position: absolute; right: 2px; top: 2px; width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: #fff; display: none; place-items: center; padding: 0; line-height: 0; cursor: pointer; z-index: 8; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .cv-del svg { width: 11px; height: 11px; display: block; }
+  .cv-grp:hover > .cv-del { display: grid; }
+  /* linha em edição (com a lista de sugestões) fica acima das outras linhas */
+  .cv-grp:focus-within { z-index: 50; }
+  /* nas listas (habilidade/idioma/curso): X centralizado e dentro da borda, com respiro no input */
+  .cv-grp.cv-skill > .cv-del, .cv-grp.cv-mini-item > .cv-del { top: 50%; transform: translateY(-50%); right: 2px; }
+  .cv-grp.cv-skill .cv-edit, .cv-grp.cv-mini-item .cv-edit { padding-right: 24px; }
+  .cv-grp.cv-skill, .cv-grp.cv-mini-item { margin-bottom: 10px; }
+  /* botões "+ adicionar": cor herda do tema (clara em fundo escuro, escura em claro) e texto em MAIÚSCULO */
+  .cv-addbtn { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: inherit; opacity: .8; cursor: pointer; border: 1px dashed currentColor; border-radius: 6px; padding: 3px 9px; margin-top: 4px; background: transparent; }
+  .cv-addbtn:hover { opacity: 1; }
   .cv-secwrap { position: relative; }
+  /* Experiência / Educação: cartão no editor (não afeta o PDF) */
+  .cv-grp.cv-item { padding: 12px 40px 12px 14px; border: 1px solid #e8ebf2; border-radius: 12px; background: #fafbff; margin-bottom: 14px; transition: border-color .15s, box-shadow .15s; }
+  .cv-grp.cv-item:hover { border-color: #c7d2fe; box-shadow: 0 2px 12px rgba(79,70,229,.10); }
+  .cv-grp.cv-item > .cv-del { top: 10px; right: 10px; transform: none; }
+  .cv-grp.cv-item .cv-per input.cv-edit { border-bottom: 1px dashed #cbd5e1; border-radius: 0; }
   .cv-icon svg { width: 1em; height: 1em; }
   .cv-fotowrap { position: relative; }
   .cv-fotodel { position: absolute; right: 6px; top: 2px; background: #ef4444; color:#fff; border-radius: 50%; width: 22px; height: 22px; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 6; }
   .cv-fotowrap:hover .cv-fotodel { display: flex; }
-  .cv-suggest { position: absolute; top: 100%; left: 0; z-index: 40; margin-top: 2px; min-width: 180px; max-width: 280px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 4px; }
+  .cv-fotowrap + h3 { margin-top: 0; }
+  .cv-foto-resize { position: absolute; right: 0; bottom: 0; width: 24px; height: 24px; border-radius: 50%; background: #4f46e5; color: #fff; display: none; align-items: center; justify-content: center; cursor: nwse-resize; z-index: 7; box-shadow: 0 1px 5px rgba(0,0,0,.35); touch-action: none; }
+  .cv-fotowrap:hover .cv-foto-resize { display: flex; }
+  .cv-suggest { position: absolute; top: 100%; left: 0; z-index: 60; margin-top: 2px; min-width: 180px; max-width: 280px; max-height: 220px; overflow-y: auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.16); padding: 4px; }
   .cv-suggest button { display: block; width: 100%; text-align: left; font-family: 'Inter', sans-serif; font-size: 12.5px; color: #334155; padding: 6px 9px; border-radius: 6px; background: transparent; border: 0; cursor: pointer; white-space: nowrap; }
   .cv-suggest button.on, .cv-suggest button:hover { background: #e0e7ff; color: #4338ca; }
 `;
 
-export default function EditorCanvas({ data, onChange, design, sections: sec, foto, onFoto }: Props) {
+export default function EditorCanvas({ data, onChange, design, sections: sec, foto, onFoto, onFotoTamanho }: Props) {
   const dual = design.layout === 'dual';
   const r = resolveDesign(design);
   const set = (p: Partial<CurriculoData>) => onChange({ ...data, ...p });
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+
+  // ── redimensionar a foto arrastando a alça (direto no currículo) ───────────
+  const tamFoto = design.fotoTamanho ?? 116;
+  const resizeRef = useRef<{ x: number; size: number } | null>(null);
+  const iniciarResize = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    resizeRef.current = { x: e.clientX, size: tamFoto };
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  };
+  const moverResize = (e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    const d = e.clientX - resizeRef.current.x;
+    const novo = Math.max(72, Math.min(180, Math.round((resizeRef.current.size + d) / 2) * 2));
+    onFotoTamanho?.(novo);
+  };
+  const fimResize = (e: React.PointerEvent) => {
+    resizeRef.current = null;
+    try { (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId); } catch { /* */ }
+  };
 
   const setExp = (id: string, p: Partial<Experiencia>) => set({ experiencias: data.experiencias.map((e) => e.id === id ? { ...e, ...p } : e) });
   const addExp = () => set({ experiencias: [...data.experiencias, { id: gerarId('exp', data.experiencias.length + (Date.now() % 1000)), empresa: '', cargo: '', inicio: '', fim: '', atual: false, atividades: '' }] });
@@ -152,12 +189,18 @@ export default function EditorCanvas({ data, onChange, design, sections: sec, fo
   };
 
   const Foto = sec.foto && (
-    <div className="cv-fotowrap">
-      <label className="cv-photo" style={{ cursor: 'pointer', backgroundImage: foto ? `url(${foto})` : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, textAlign: 'center', fontSize: 10 }}>
+    <div className="cv-fotowrap" style={{ width: tamFoto, maxWidth: '100%', margin: design.layout === 'topo' ? 0 : '0 auto 18px', position: 'relative' }}>
+      <label className="cv-photo" style={{ width: '100%', margin: 0, cursor: 'pointer', backgroundImage: foto ? `url(${foto})` : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 4, textAlign: 'center', fontSize: 10 }}>
         {!foto && <><Upload className="h-4 w-4" /><span style={{ opacity: .7 }}>Selecione sua foto</span></>}
         <input type="file" accept="image/*" className="hidden" onChange={escolherFoto} />
       </label>
       {foto && <span className="cv-fotodel" onClick={() => onFoto(undefined)} title="Remover foto"><X className="h-3.5 w-3.5" /></span>}
+      {onFotoTamanho && (
+        <span className="cv-foto-resize" title="Arraste para redimensionar a foto"
+          onPointerDown={iniciarResize} onPointerMove={moverResize} onPointerUp={fimResize} onPointerCancel={fimResize}>
+          <Maximize2 className="h-3 w-3" />
+        </span>
+      )}
     </div>
   );
 
@@ -290,11 +333,16 @@ export default function EditorCanvas({ data, onChange, design, sections: sec, fo
     <div style={{ position: 'relative', maxWidth: 794, margin: '0 auto', background: design.bgColor, boxShadow: '0 4px 24px rgba(0,0,0,.12)' }}>
       <style dangerouslySetInnerHTML={{ __html: `.cv-root svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}` + buildCSS(design) + EDIT_CSS }} />
       <div aria-hidden style={{ position: 'absolute', inset: 0, backgroundImage: WATERMARK, backgroundRepeat: 'repeat', pointerEvents: 'none', zIndex: 30 }} />
-      <div className="cv-root">
+      <div className={`cv-root${design.layout === 'topo' ? ' cv-topo-root' : ''}${design.headerAlign === 'center' ? ' cv-center' : ''}`}>
         {dual ? (
           <>
             <aside className="cv-side">{Foto}{Contato}{Dados}{Hab}{Idi}{Cur}</aside>
             <main className="cv-main">{NomeCargo}{Perfil}{Exp}{Edu}{Qualif}</main>
+          </>
+        ) : design.layout === 'topo' ? (
+          <>
+            <header className="cv-topo">{Foto}<div className="cv-topo-info">{NomeCargo}{Contato}</div></header>
+            <main className="cv-main">{Perfil}{Exp}{Edu}{Hab}{Idi}{Cur}{Qualif}{Dados}</main>
           </>
         ) : (
           <main className="cv-main">{NomeCargo}{Contato}{Perfil}{Exp}{Edu}{Hab}{Idi}{Cur}{Qualif}{Dados}</main>

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'framer-motion';
 import {
   Sparkles, MousePointerClick, MessageSquareText, FileDown, Wand2, Palette,
   LayoutGrid, ChevronDown, Star, ArrowRight,
@@ -8,10 +9,60 @@ import { SECOES_PADRAO } from '../design/types';
 import { documentoHTML } from '../design/render';
 import { AMOSTRA } from '../templates/shared';
 import { INDIGO, SiteHeader, SiteFooter, SitePagina } from './SiteShell';
+import { TestimonialsColumn, type Depoimento } from '@/components/ui/testimonials-columns';
+import type { Usuario } from '../lib/auth';
 
-interface Props { onIniciar: () => void; onNavegar: (p: SitePagina) => void; dark: boolean; onToggleDark: () => void }
+interface Props {
+  onIniciar: () => void;
+  onNavegar: (p: SitePagina) => void;
+  dark: boolean;
+  onToggleDark: () => void;
+  usuario?: Usuario | null;
+  onEntrar?: () => void;
+  onSair?: () => void;
+  onMeusCurriculos?: () => void;
+}
 
 const A4_W = 794;
+
+// palavra que gira no título do hero
+function PalavraGirando() {
+  const palavras = useMemo(() => ['profissional', 'moderno', 'aprovado', 'que impressiona', 'impecável'], []);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setTimeout(() => setI((p) => (p + 1) % palavras.length), 2200);
+    return () => clearTimeout(t);
+  }, [i, palavras]);
+  return (
+    <span className="relative block h-[1.15em] overflow-hidden">
+      {palavras.map((p, idx) => (
+        <motion.span
+          key={p}
+          className="absolute left-0 font-extrabold"
+          style={{ color: INDIGO }}
+          initial={{ opacity: 0, y: '-100%' }}
+          transition={{ type: 'spring', stiffness: 50 }}
+          animate={i === idx ? { y: 0, opacity: 1 } : { y: i > idx ? '-130%' : '130%', opacity: 0 }}
+        >
+          {p}
+        </motion.span>
+      ))}
+    </span>
+  );
+}
+
+// depoimentos (feedbacks) — contexto de quem procura emprego
+const DEPOIMENTOS: Depoimento[] = [
+  { text: 'Montei meu currículo em 10 minutos e me chamaram pra entrevista na semana seguinte.', image: 'https://randomuser.me/api/portraits/women/12.jpg', name: 'Juliana Alves', role: 'Auxiliar Administrativo' },
+  { text: 'Eu não sabia o que escrever. O assistente perguntou tudo e deixou bonito.', image: 'https://randomuser.me/api/portraits/men/22.jpg', name: 'Marcos Pereira', role: 'Vendedor' },
+  { text: 'Consegui meu primeiro emprego com o currículo daqui. Recomendo demais!', image: 'https://randomuser.me/api/portraits/women/33.jpg', name: 'Beatriz Santos', role: 'Jovem Aprendiz' },
+  { text: 'Os modelos são lindos e dá pra trocar a cor. Ficou com cara de profissional.', image: 'https://randomuser.me/api/portraits/men/44.jpg', name: 'Rafael Lima', role: 'Designer' },
+  { text: 'Fiz tudo pelo celular mesmo. Simples e rápido.', image: 'https://randomuser.me/api/portraits/women/55.jpg', name: 'Camila Souza', role: 'Atendente' },
+  { text: 'Baixei em PDF e mandei na hora. Sem complicação.', image: 'https://randomuser.me/api/portraits/men/66.jpg', name: 'Diego Fernandes', role: 'Motorista' },
+  { text: 'A correção de texto ajudou muito — meu português não é dos melhores.', image: 'https://randomuser.me/api/portraits/women/68.jpg', name: 'Patrícia Gomes', role: 'Repositora' },
+  { text: 'Testei vários sites e esse foi o mais fácil de usar.', image: 'https://randomuser.me/api/portraits/men/76.jpg', name: 'Lucas Martins', role: 'Estagiário' },
+  { text: 'Atualizei meu currículo pra uma vaga nova em minutos.', image: 'https://randomuser.me/api/portraits/women/82.jpg', name: 'Fernanda Rocha', role: 'Analista' },
+];
 
 function MiniModelo({ idx, escala = 0.26 }: { idx: number; escala?: number }) {
   const m = MODELOS[idx % MODELOS.length];
@@ -23,12 +74,14 @@ function MiniModelo({ idx, escala = 0.26 }: { idx: number; escala?: number }) {
   );
 }
 
-export default function Landing({ onIniciar, onNavegar, dark, onToggleDark }: Props) {
+export default function Landing({ onIniciar, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos }: Props) {
   const [faq, setFaq] = useState<number | null>(0);
+  const [verMais, setVerMais] = useState(false);
+  const idxsModelos = verMais ? MODELOS.map((_, i) => i) : [0, 1, 3, 5, 6, 8];
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-800 dark:bg-[#0b1020] dark:text-slate-100">
-      <SiteHeader onIniciar={onIniciar} onHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} />
+      <SiteHeader onIniciar={onIniciar} onHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} />
 
       {/* HERO */}
       <section className="relative overflow-hidden">
@@ -38,8 +91,10 @@ export default function Landing({ onIniciar, onNavegar, dark, onToggleDark }: Pr
             <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold" style={{ background: '#ecf1fd', color: INDIGO }}>
               <Sparkles className="h-3.5 w-3.5" /> Editor de currículo online
             </span>
-            <h1 className="mt-5 text-4xl font-extrabold leading-[1.1] tracking-tight sm:text-5xl">
-              Crie um currículo <span style={{ color: INDIGO }}>profissional</span> em minutos
+            <h1 className="mt-5 text-4xl font-extrabold leading-[1.12] tracking-tight sm:text-5xl">
+              Crie um currículo
+              <PalavraGirando />
+              <span className="block">em minutos</span>
             </h1>
             <p className="mt-5 max-w-md text-lg text-slate-600 dark:text-slate-300">
               Escolha um modelo, edite direto na tela e baixe em PDF. Sem complicação — e se preferir, a assistente Camila monta tudo por você no chat.
@@ -115,16 +170,37 @@ export default function Landing({ onIniciar, onNavegar, dark, onToggleDark }: Pr
           <h2 className="text-center text-3xl font-extrabold">Modelos para todas as profissões</h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-slate-600 dark:text-slate-300">Escolha o seu favorito e comece agora.</p>
           <div className="mt-12 flex flex-wrap justify-center gap-6">
-            {[0, 1, 3, 5, 6].map((idx) => (
-              <button key={idx} onClick={onIniciar} className="transition hover:-translate-y-1">
+            {idxsModelos.map((idx) => (
+              <button key={idx} onClick={onIniciar} className="group relative transition hover:-translate-y-1" title={`Usar o modelo ${MODELOS[idx].nome}`}>
                 <MiniModelo idx={idx} escala={0.3} />
+                <span className="mt-2 block text-center text-sm font-medium text-slate-500 dark:text-slate-400">{MODELOS[idx].nome}</span>
               </button>
             ))}
           </div>
-          <div className="mt-10 text-center">
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+            <button onClick={() => setVerMais((v) => !v)} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-6 py-3.5 font-semibold text-slate-700 transition hover:bg-white dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5">
+              {verMais ? 'Ver menos modelos' : `Ver mais modelos (${MODELOS.length})`}
+              <ChevronDown className={`h-4 w-4 transition ${verMais ? 'rotate-180' : ''}`} />
+            </button>
             <button onClick={onIniciar} className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 font-semibold text-white shadow-lg" style={{ background: INDIGO }}>
               Usar um modelo <ArrowRight className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+      </section>
+
+      {/* DEPOIMENTOS */}
+      <section className="py-16">
+        <div className="mx-auto max-w-6xl px-5">
+          <div className="mx-auto flex max-w-xl flex-col items-center text-center">
+            <span className="rounded-lg border border-slate-200 px-4 py-1 text-sm font-medium text-slate-500 dark:border-white/15 dark:text-slate-300">Depoimentos</span>
+            <h2 className="mt-5 text-3xl font-extrabold tracking-tight sm:text-4xl">O que dizem quem já usou</h2>
+            <p className="mt-3 text-slate-600 dark:text-slate-300">Gente real que conquistou a vaga com o Curriculou.</p>
+          </div>
+          <div className="mt-10 flex max-h-[640px] justify-center gap-6 overflow-hidden [mask-image:linear-gradient(to_bottom,transparent,black_18%,black_82%,transparent)]">
+            <TestimonialsColumn testimonials={DEPOIMENTOS.slice(0, 3)} duration={15} />
+            <TestimonialsColumn testimonials={DEPOIMENTOS.slice(3, 6)} className="hidden md:block" duration={19} />
+            <TestimonialsColumn testimonials={DEPOIMENTOS.slice(6, 9)} className="hidden lg:block" duration={17} />
           </div>
         </div>
       </section>

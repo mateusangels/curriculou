@@ -4,7 +4,12 @@ import type { DesignConfig, SectionsConfig } from './types';
 import { buildCSS, resolveDesign } from './style';
 import { esc, periodo, enderecoCompleto, cidadeUF, ICON } from '../templates/shared';
 
-export interface RenderOpts { foto?: string }
+export interface RenderOpts { foto?: string; marca?: boolean }
+
+// marca d'água repetida (usada no download GRÁTIS; o pago sai limpo)
+const WATERMARK_BG = `url("data:image/svg+xml,${encodeURIComponent(
+  "<svg xmlns='http://www.w3.org/2000/svg' width='300' height='180'><text x='8' y='110' font-family='Arial, sans-serif' font-size='26' font-weight='700' fill='%234b4ff2' fill-opacity='0.13' transform='rotate(-24 150 90)'>Curriculou • amostra</text></svg>"
+)}")`;
 
 function iniciais(nome: string): string {
   const p = nome.trim().split(/\s+/).filter(Boolean);
@@ -105,6 +110,26 @@ export function renderBody(d: CurriculoData, design: DesignConfig, sec: Sections
   const experiencia = h2('Experiência Profissional', expHTML(d));
   const educacao = h2('Educação', eduHTML(d));
   const qualif = h2('Qualificações e Informações Adicionais', qualificacoesHTML(d));
+  const centro = design.headerAlign === 'center' ? ' cv-center' : '';
+
+  // layout TOPO: faixa colorida no topo (foto + nome + contato) e corpo em coluna única
+  if (design.layout === 'topo') {
+    const topo = `<header class="cv-topo">
+      ${S(sec.foto, fotoHTML(d, opts))}
+      <div class="cv-topo-info">${nomeCargo}${sec.contato ? `<div class="cv-single-contact">${contatoHTML(d, r.contactIcons)}</div>` : ''}</div>
+    </header>`;
+    const corpo = [
+      S(sec.perfil, perfil),
+      S(sec.experiencia, experiencia),
+      S(sec.educacao, educacao),
+      S(sec.habilidades, h2('Habilidades', habilidadesHTML(d, false))),
+      S(sec.idiomas, h2('Idiomas', idiomasHTML(d, false))),
+      S(sec.cursos, h2('Cursos e Certificações', cursosHTML(d))),
+      S(sec.qualificacoes, qualif),
+      S(sec.dadosPessoais, h2('Dados Pessoais', dadosHTML(d))),
+    ].join('');
+    return `<div class="cv-root cv-topo-root">${topo}<main class="cv-main">${corpo}</main></div>`;
+  }
 
   if (dual) {
     const side = [
@@ -139,13 +164,17 @@ export function renderBody(d: CurriculoData, design: DesignConfig, sec: Sections
     S(sec.qualificacoes, qualif),
     S(sec.dadosPessoais, h2('Dados Pessoais', dadosHTML(d))),
   ].join('');
-  return `<div class="cv-root"><main class="cv-main">${main}</main></div>`;
+  return `<div class="cv-root${centro}"><main class="cv-main">${main}</main></div>`;
 }
 
 export function documentoHTML(d: CurriculoData, design: DesignConfig, sec: SectionsConfig, opts?: RenderOpts): string {
+  const wmCss = opts?.marca
+    ? `.cv-wm{position:fixed;inset:0;background-image:${WATERMARK_BG};background-repeat:repeat;pointer-events:none;z-index:9999;}`
+    : '';
+  const wmEl = opts?.marca ? '<div class="cv-wm"></div>' : '';
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
-<style>@page{size:A4;margin:0}*{margin:0;padding:0;box-sizing:border-box}html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}${SVG_DEFS}${buildCSS(design)}</style>
-</head><body>${renderBody(d, design, sec, opts)}</body></html>`;
+<style>@page{size:A4;margin:0}*{margin:0;padding:0;box-sizing:border-box}html,body{background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}${SVG_DEFS}${buildCSS(design)}${wmCss}</style>
+</head><body>${renderBody(d, design, sec, opts)}${wmEl}</body></html>`;
 }

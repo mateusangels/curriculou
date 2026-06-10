@@ -74,10 +74,10 @@ export function buildCSS(d: DesignConfig): string {
   .cv-side { ${dual ? `width: 34%; background: ${r.sidebarBg}; color: ${r.sidebarText}; padding: 30px 22px;` : 'display:none;'} }
   .cv-main { ${dual ? 'width: 66%;' : 'width: 100%;'} padding: ${dual ? '34px 32px' : '40px 46px'}; }
 
-  .cv-photo { width: 116px; height: 116px; border-radius: 50%; margin: 0 auto 18px; background-size: cover; background-position: center; ${r.layout === 'dual' ? `border: 3px solid ${r.sidebarBorder};` : `border: 3px solid ${r.accent}33;`} background-color: rgba(127,127,127,.12); }
-  .cv-photo-ph { display:flex; align-items:center; justify-content:center; font-weight:700; font-size: ${r.namePx * 0.42}px; opacity:.65; }
+  .cv-photo { width: ${d.fotoTamanho ?? 116}px; max-width: 100%; aspect-ratio: 1 / 1; border-radius: 50%; margin: 0 auto 18px; background-size: cover; background-position: center; ${r.layout === 'dual' ? `border: 3px solid ${r.sidebarBorder};` : `border: 3px solid ${r.accent}33;`} background-color: rgba(127,127,127,.12); }
+  .cv-photo-ph { display:flex; align-items:center; justify-content:center; font-weight:700; font-size: ${(d.fotoTamanho ?? 116) * 0.36}px; opacity:.65; }
 
-  .cv-name { font-size: ${r.namePx}px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05; color: #1f2430; }
+  .cv-name { font-size: ${r.namePx}px; font-weight: 800; letter-spacing: -.5px; line-height: 1.05; color: #1f2430; text-transform: uppercase; }
   .cv-cargo { font-size: ${r.basePx * 1.3}px; font-weight: 600; color: ${r.accent}; margin-top: 2px; }
 
   .cv-side h3 { font-size: ${r.basePx * 0.95}px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: ${r.sidebarTitle}; margin: 18px 0 9px; ${r.headerBorder ? `border-bottom: 1px solid ${r.sidebarBorder}; padding-bottom: 5px;` : ''} }
@@ -111,6 +111,22 @@ export function buildCSS(d: DesignConfig): string {
   .cv-mini-item { margin-bottom: 8px; font-size: ${r.basePx * 0.95}px; }
   .cv-mini-item b { font-weight: 600; }
   .cv-mini-item span { display: block; opacity: .82; font-size: ${r.basePx * 0.86}px; }
+
+  /* ── layout TOPO: faixa colorida no cabeçalho ───────────────────────────── */
+  .cv-topo { display: flex; align-items: center; gap: 22px; background: ${r.sidebarBg}; color: ${r.sidebarText}; padding: 30px 40px; }
+  .cv-topo .cv-fotowrap, .cv-topo .cv-photo { margin: 0; flex-shrink: 0; }
+  .cv-topo .cv-name { color: ${r.sidebarText}; }
+  .cv-topo .cv-cargo { color: ${corClara(d.sidebarBg) ? r.accent : 'rgba(255,255,255,.92)'}; }
+  .cv-topo .cv-single-contact { color: ${r.sidebarMuted}; margin-top: 8px; }
+  .cv-topo .cv-single-contact svg { opacity: .85; }
+  .cv-topo-info { flex: 1; min-width: 0; }
+  .cv-topo-root .cv-main { padding: 30px 40px; width: 100%; }
+
+  /* ── cabeçalho centralizado (headerAlign: center) ───────────────────────── */
+  .cv-center .cv-name, .cv-center .cv-cargo { text-align: center; }
+  .cv-center .cv-single-contact { justify-content: center; }
+  .cv-center .cv-main > h2 { text-align: center; }
+  .cv-center .cv-main > h2::after { content: ""; display: block; width: 46px; height: 2px; margin: 6px auto 0; background: ${r.accent}; }
   `;
 }
 

@@ -80,6 +80,11 @@ export default function DesignPanel({ design, onChange, onClose }: Props) {
             onChange={(e) => set({ nameScale: +e.target.value })} className="w-28 accent-indigo-600" />
         </Linha>
 
+        <Linha label={`Tamanho da foto (${design.fotoTamanho ?? 116}px)`}>
+          <input type="range" min={72} max={180} step={4} value={design.fotoTamanho ?? 116}
+            onChange={(e) => set({ fotoTamanho: +e.target.value })} className="w-28 accent-indigo-600" />
+        </Linha>
+
         <Linha label="Cor de destaque"><Swatches cores={CORES_DESTAQUE} valor={design.accent} onPick={(c) => set({ accent: c })} /></Linha>
         {design.layout === 'dual' && (
           <Linha label="Cor lateral"><Swatches cores={CORES_SIDEBAR} valor={design.sidebarBg} onPick={(c) => set({ sidebarBg: c })} /></Linha>

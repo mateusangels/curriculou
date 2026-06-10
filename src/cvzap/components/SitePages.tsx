@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Check, Mail, MessageSquareText, Wand2, ShieldCheck } from 'lucide-react';
+import { Check, Mail, MessageSquareText, Wand2, ShieldCheck, Crown } from 'lucide-react';
 import { INDIGO, SiteHeader, SiteFooter, SitePagina } from './SiteShell';
+import { PRECO_INDIVIDUAL, PRECO_PRO_MES, formatarBRL } from '../lib/pagamento';
 
 interface Props {
   pagina: SitePagina;
@@ -9,12 +10,16 @@ interface Props {
   onNavegar: (p: SitePagina) => void;
   dark: boolean;
   onToggleDark: () => void;
+  usuario?: import('../lib/auth').Usuario | null;
+  onEntrar?: () => void;
+  onSair?: () => void;
+  onMeusCurriculos?: () => void;
 }
 
-export default function SitePages({ pagina, onIniciar, onHome, onNavegar, dark, onToggleDark }: Props) {
+export default function SitePages({ pagina, onIniciar, onHome, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos }: Props) {
   return (
     <div className="min-h-[100dvh] bg-white text-slate-800 dark:bg-[#0b1020] dark:text-slate-100">
-      <SiteHeader onIniciar={onIniciar} onHome={onHome} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} />
+      <SiteHeader onIniciar={onIniciar} onHome={onHome} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} />
       <main className="mx-auto max-w-4xl px-5 py-14">
         {pagina === 'precos' && <Precos onIniciar={onIniciar} />}
         {pagina === 'contato' && <Contato />}
@@ -39,29 +44,39 @@ function Titulo({ children, sub }: { children: React.ReactNode; sub?: string }) 
 function Precos({ onIniciar }: { onIniciar: () => void }) {
   const planos = [
     {
-      nome: 'Gratuito', preco: 'R$ 0', desc: 'Tudo que você precisa para começar.',
-      itens: ['Editor completo na tela', 'Assistente por chat', 'Todos os modelos', 'Download em PDF', 'Salvo no seu navegador'],
-      destaque: false, cta: 'Começar grátis',
+      nome: 'Gratuito', preco: 'R$ 0', sufixo: '', desc: 'Monte e visualize quantas vezes quiser.',
+      itens: ['Criar e editar currículo', 'Visualizar na tela', 'Todos os modelos', 'Assistente por chat'],
+      nota: 'Download sai com marca d\'água', destaque: false, popular: false, cta: 'Começar grátis',
     },
     {
-      nome: 'Pro', preco: 'Em breve', desc: 'Recursos avançados com IA.',
-      itens: ['Tudo do Gratuito', 'Melhorar com IA avançada', 'Adaptar à vaga', 'Tradução automática', 'Currículos na nuvem'],
-      destaque: true, cta: 'Avise-me',
+      nome: 'Individual', preco: formatarBRL(PRECO_INDIVIDUAL), sufixo: 'pagamento único', desc: 'Para baixar um currículo pronto.',
+      itens: ['1 download em PDF', 'Sem marca d\'água', 'Foto incluída', 'Currículo ATS Friendly'],
+      nota: '', destaque: true, popular: false, cta: 'Quero este',
+    },
+    {
+      nome: 'Profissional', preco: formatarBRL(PRECO_PRO_MES), sufixo: '/mês', desc: 'Para quem está na busca ativa.',
+      itens: ['Currículos ilimitados', 'Downloads ilimitados', 'Edições ilimitadas', 'Melhorias por IA', 'Novos modelos', 'Atualizações futuras'],
+      nota: '', destaque: true, popular: true, cta: 'Assinar',
     },
   ];
   return (
     <>
-      <Titulo sub="Comece de graça. Recursos com IA chegam em breve.">Planos simples e transparentes</Titulo>
-      <div className="grid gap-6 sm:grid-cols-2">
+      <Titulo sub="Comece de graça. Pague só quando for baixar — ou assine para uso ilimitado.">Planos simples e transparentes</Titulo>
+      <div className="grid gap-6 md:grid-cols-3">
         {planos.map((p) => (
-          <div key={p.nome} className={`rounded-2xl border p-7 ${p.destaque ? 'border-2 shadow-lg' : 'border-slate-200 dark:border-white/10'}`} style={p.destaque ? { borderColor: INDIGO } : undefined}>
-            <h2 className="text-lg font-bold">{p.nome}</h2>
-            <div className="mt-2 text-3xl font-extrabold" style={{ color: p.destaque ? INDIGO : undefined }}>{p.preco}</div>
+          <div key={p.nome} className={`relative flex flex-col rounded-2xl border p-7 ${p.destaque ? 'border-2 shadow-lg' : 'border-slate-200 dark:border-white/10'}`} style={p.destaque ? { borderColor: INDIGO } : undefined}>
+            {p.popular && <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-xs font-bold text-white" style={{ background: INDIGO }}>Mais Popular</span>}
+            <h2 className="flex items-center gap-1.5 text-lg font-bold">{p.popular && <Crown className="h-4 w-4 text-amber-500" />}{p.nome}</h2>
+            <div className="mt-2 flex items-end gap-1">
+              <span className="text-3xl font-extrabold" style={{ color: p.destaque ? INDIGO : undefined }}>{p.preco}</span>
+              {p.sufixo && <span className="pb-1 text-xs text-slate-400">{p.sufixo}</span>}
+            </div>
             <p className="mt-1 text-sm text-slate-500">{p.desc}</p>
-            <ul className="mt-5 space-y-2 text-sm">
+            <ul className="mt-5 flex-1 space-y-2 text-sm">
               {p.itens.map((it) => (
                 <li key={it} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0" style={{ color: INDIGO }} /> {it}</li>
               ))}
+              {p.nota && <li className="flex items-start gap-2 text-amber-600"><Check className="mt-0.5 h-4 w-4 shrink-0" /> {p.nota}</li>}
             </ul>
             <button onClick={onIniciar} className={`mt-6 w-full rounded-xl py-3 font-semibold transition ${p.destaque ? 'text-white hover:opacity-90' : 'border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-white/15 dark:text-slate-200'}`} style={p.destaque ? { background: INDIGO } : undefined}>
               {p.cta}

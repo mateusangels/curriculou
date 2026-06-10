@@ -1,6 +1,6 @@
 // ── Configuração de design e seções do editor de currículo ───────────────────
 
-export type LayoutTipo = 'dual' | 'single';
+export type LayoutTipo = 'dual' | 'single' | 'topo';
 export type FonteKey = 'inter' | 'source' | 'lora' | 'georgia';
 export type BordaCabecalho = 'line' | 'none';
 
@@ -9,10 +9,12 @@ export interface DesignConfig {
   sidebarLado: 'left' | 'right';
   font: FonteKey;
   accent: string; // cor de destaque (títulos, links)
-  sidebarBg: string; // cor de preenchimento lateral (layout dual)
+  sidebarBg: string; // cor de preenchimento lateral (layout dual/topo)
   bgColor: string; // cor de fundo da folha
   fontSizePt: number; // 8–12
   nameScale: number; // 1.5–3.5
+  fotoTamanho?: number; // diâmetro da foto em px (padrão 116)
+  headerAlign?: 'left' | 'center'; // alinhamento do nome/contato (layout single)
   headerBorder: BordaCabecalho;
   contactIcons: boolean;
   bulletIndent: boolean;

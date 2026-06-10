@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, Check } from 'lucide-react';
 import { MODELOS, CATEGORIAS } from '../../design/presets';
 import { SECOES_PADRAO } from '../../design/types';
@@ -12,9 +12,26 @@ interface Props {
   onClose: () => void;
 }
 
-const THUMB_W = 320;
 const A4_W = 794;
-const ESCALA = THUMB_W / A4_W;
+
+// miniatura que preenche a largura do card (responsiva)
+function Thumb({ design, nome }: { design: DesignConfig; nome: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [w, setW] = useState(300);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const ro = new ResizeObserver(() => setW(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const s = w / A4_W;
+  return (
+    <div ref={ref} className="pointer-events-none relative w-full overflow-hidden bg-white" style={{ height: A4_W * 1.414 * s }}>
+      <iframe title={nome} srcDoc={documentoHTML(AMOSTRA, design, SECOES_PADRAO)} sandbox="allow-same-origin" scrolling="no" tabIndex={-1}
+        style={{ width: A4_W, height: A4_W * 1.414, border: 0, transform: `scale(${s})`, transformOrigin: 'top left' }} />
+    </div>
+  );
+}
 
 export default function ModelosModal({ designAtual, onEscolher, onClose }: Props) {
   const [cat, setCat] = useState<string>('Todos');
@@ -40,17 +57,23 @@ export default function ModelosModal({ designAtual, onEscolher, onClose }: Props
               </button>
             ))}
           </aside>
-          {/* grade */}
-          <div className="grid flex-1 grid-cols-1 gap-5 overflow-y-auto p-5 sm:grid-cols-2 lg:grid-cols-3">
+          {/* coluna direita: chips de categoria (mobile) + grade */}
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex gap-2 overflow-x-auto border-b border-slate-200 p-3 sm:hidden dark:border-slate-700 [&>*]:shrink-0">
+              {CATEGORIAS.map((c) => (
+                <button key={c} onClick={() => setCat(c)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition ${cat === c ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          <div className="grid flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 sm:grid-cols-2 sm:gap-5 sm:p-5 lg:grid-cols-3">
             {lista.map((m) => {
               const ativo = mesmoDesign(m.design);
               return (
                 <button key={m.id} onClick={() => onEscolher(m.design, m.id)}
                   className={`group relative overflow-hidden rounded-xl border-2 bg-white text-left transition hover:shadow-lg ${ativo ? 'border-indigo-500 ring-2 ring-indigo-500/30' : 'border-slate-200 dark:border-slate-700'}`}>
-                  <div className="pointer-events-none relative overflow-hidden bg-white" style={{ height: A4_W * 1.414 * ESCALA }}>
-                    <iframe title={m.nome} srcDoc={documentoHTML(AMOSTRA, m.design, SECOES_PADRAO)} sandbox="allow-same-origin" scrolling="no" tabIndex={-1}
-                      style={{ width: A4_W, height: A4_W * 1.414, border: 0, transform: `scale(${ESCALA})`, transformOrigin: 'top left' }} />
-                  </div>
+                  <Thumb design={m.design} nome={m.nome} />
                   <div className="flex items-center justify-between px-3 py-2">
                     <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">{m.nome}</span>
                     <span className="text-[10px] uppercase tracking-wide text-slate-400">{m.categoria}</span>
@@ -59,6 +82,7 @@ export default function ModelosModal({ designAtual, onEscolher, onClose }: Props
                 </button>
               );
             })}
+          </div>
           </div>
         </div>
       </div>
