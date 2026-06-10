@@ -7,8 +7,6 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import mysql from 'mysql2/promise';
-import { MercadoPagoConfig, Preference, Payment } from 'mercadopago';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -16,7 +14,20 @@ app.use(express.json());
 app.use(cors());
 
 const PORT = process.env.PORT || 3333;
-const mp = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN || '' });
+
+// nunca deixar o app cair por erro não tratado (mantém o site no ar)
+process.on('unhandledRejection', (e) => console.error('unhandledRejection:', e));
+process.on('uncaughtException', (e) => console.error('uncaughtException:', e));
+
+// Mercado Pago carregado de forma preguiçosa (não derruba o app se faltar token)
+async function getMercadoPago() {
+  if (!process.env.MP_ACCESS_TOKEN) return null;
+  const mod = await import('mercadopago');
+  const MP = mod.MercadoPagoConfig || mod.default?.MercadoPagoConfig;
+  const Preference = mod.Preference || mod.default?.Preference;
+  const Payment = mod.Payment || mod.default?.Payment;
+  return { client: new MP({ accessToken: process.env.MP_ACCESS_TOKEN }), Preference, Payment };
+}
 
 const PRECO_COM_FOTO = 4.0;
 const PRECO_SEM_FOTO = 3.5;
@@ -31,23 +42,29 @@ async function initDb() {
     console.warn('⚠️  Sem DB_HOST — usando memória (pedidos somem ao reiniciar).');
     return;
   }
-  pool = mysql.createPool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASS,
-    database: process.env.DB_NAME,
-    waitForConnections: true,
-    connectionLimit: 5,
-  });
-  await pool.query(`CREATE TABLE IF NOT EXISTS pedidos (
-    id VARCHAR(40) PRIMARY KEY,
-    pago TINYINT NOT NULL DEFAULT 0,
-    valor DECIMAL(10,2) NOT NULL,
-    com_foto TINYINT NOT NULL DEFAULT 0,
-    criado_em BIGINT NOT NULL
-  )`);
-  console.log('✅ MySQL conectado.');
+  try {
+    const mysql = (await import('mysql2/promise')).default;
+    pool = mysql.createPool({
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT || 3306,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASS,
+      database: process.env.DB_NAME,
+      waitForConnections: true,
+      connectionLimit: 5,
+    });
+    await pool.query(`CREATE TABLE IF NOT EXISTS pedidos (
+      id VARCHAR(40) PRIMARY KEY,
+      pago TINYINT NOT NULL DEFAULT 0,
+      valor DECIMAL(10,2) NOT NULL,
+      com_foto TINYINT NOT NULL DEFAULT 0,
+      criado_em BIGINT NOT NULL
+    )`);
+    console.log('✅ MySQL conectado.');
+  } catch (e) {
+    console.error('⚠️  Falha no MySQL — caindo para memória:', e.message);
+    pool = null;
+  }
 }
 
 async function salvarPedido(id, valor, comFoto) {
@@ -71,10 +88,13 @@ app.post('/api/criar-pagamento', async (req, res) => {
   try {
     const { comFoto = false, promo = false } = req.body || {};
     const valor = promo ? PRECO_PROMO : (comFoto ? PRECO_COM_FOTO : PRECO_SEM_FOTO);
+    const mp = await getMercadoPago();
+    if (!mp) return res.status(503).json({ erro: 'Pagamento ainda não configurado (defina MP_ACCESS_TOKEN).' });
+
     const id = novoId();
     await salvarPedido(id, valor, comFoto);
 
-    const pref = await new Preference(mp).create({
+    const pref = await new mp.Preference(mp.client).create({
       body: {
         items: [{ id: 'curriculo', title: comFoto ? 'Currículo Curriculou (com foto)' : 'Currículo Curriculou', quantity: 1, unit_price: Number(valor), currency_id: 'BRL' }],
         external_reference: id,
@@ -97,8 +117,9 @@ app.post('/api/criar-pagamento', async (req, res) => {
 app.post('/api/webhook', async (req, res) => {
   try {
     const paymentId = req.body?.data?.id || req.query['data.id'];
-    if (paymentId) {
-      const payment = await new Payment(mp).get({ id: paymentId });
+    const mp = await getMercadoPago();
+    if (paymentId && mp) {
+      const payment = await new mp.Payment(mp.client).get({ id: paymentId });
       const ref = payment?.external_reference;
       if (ref && payment?.status === 'approved') await marcarPago(ref);
     }
@@ -124,6 +145,7 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(DIST, 'index.html'));
 });
 
-initDb().finally(() => {
-  app.listen(PORT, () => console.log(`Curriculou rodando na porta ${PORT}`));
-});
+// sobe o servidor IMEDIATAMENTE (não espera o banco) para evitar 503
+app.listen(PORT, '0.0.0.0', () => console.log(`Curriculou rodando na porta ${PORT}`));
+// inicializa o banco em segundo plano
+initDb().catch((e) => console.error('initDb', e));
