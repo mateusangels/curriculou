@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { X, Check, Loader2, FileDown, Gift, ShieldCheck } from 'lucide-react';
-import { PRECO_COM_FOTO, PRECO_SEM_FOTO, PRECO_PROMO, formatarBRL, cobrar } from '../../lib/pagamento';
+import { PRECO_COM_FOTO, PRECO_SEM_FOTO, PRECO_PROMO, formatarBRL, cobrar, iniciarCheckout } from '../../lib/pagamento';
 
 interface Props {
   comFoto: boolean;
@@ -16,15 +16,18 @@ export default function PaywallModal({ comFoto, onPago, onClose }: Props) {
   const [etapa, setEtapa] = useState<Etapa>('oferta');
   const [valorPago, setValorPago] = useState(precoCheio);
 
-  const pagar = async (valor: number) => {
+  const pagar = async (valor: number, promo = false) => {
     setValorPago(valor);
     setEtapa('processando');
-    const r = await cobrar('Currículo Curriculou', valor);
-    if (r.ok) {
-      setEtapa('sucesso');
-      setTimeout(() => { onPago(); }, 900);
-    } else {
-      setEtapa('oferta');
+    try {
+      // tenta o Checkout Pro real (redireciona para o Mercado Pago)
+      await iniciarCheckout(comFoto, promo);
+      return; // se redirecionou, a página sai daqui
+    } catch {
+      // sem backend/token (ex.: ambiente local) → modo demonstração
+      const r = await cobrar('Currículo Curriculou', valor);
+      if (r.ok) { setEtapa('sucesso'); setTimeout(() => onPago(), 900); }
+      else setEtapa('oferta');
     }
   };
 
@@ -80,7 +83,7 @@ export default function PaywallModal({ comFoto, onPago, onClose }: Props) {
                 -{Math.round((1 - PRECO_PROMO / precoCheio) * 100)}%
               </span>
             </div>
-            <button onClick={() => pagar(PRECO_PROMO)} className="mt-5 w-full rounded-xl py-3.5 font-bold text-white" style={{ background: MP_BLUE }}>
+            <button onClick={() => pagar(PRECO_PROMO, true)} className="mt-5 w-full rounded-xl py-3.5 font-bold text-white" style={{ background: MP_BLUE }}>
               Aproveitar e baixar por {formatarBRL(PRECO_PROMO)}
             </button>
             <button onClick={onClose} className="mt-2 w-full text-sm text-slate-400 hover:text-slate-600">Não, obrigado</button>

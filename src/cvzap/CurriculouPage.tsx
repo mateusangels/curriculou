@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import CurriculouEditor from './components/editor/CurriculouEditor';
 import Landing from './components/Landing';
 import SitePages from './components/SitePages';
 import type { SitePagina } from './components/SiteShell';
+import { verificarPago } from './lib/pagamento';
+import { baixarCurriculoSalvo } from './lib/baixarSalvo';
 import './cvzap.css';
 
 const DARK_KEY = 'cvzap:dark';
@@ -34,6 +37,34 @@ export default function CurriculouPage() {
 
   // rola pro topo ao trocar de página
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+
+  // retorno do Mercado Pago: ?pago=<id> -> confere e baixa o PDF
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get('pago');
+    const limparUrl = () => window.history.replaceState({}, '', window.location.pathname);
+    if (!id) {
+      if (params.get('falhou')) { toast.error('Pagamento não concluído. Você pode tentar de novo.'); setView('editor'); limparUrl(); }
+      return;
+    }
+    setView('editor');
+    let tentativas = 0;
+    const tid = window.setInterval(async () => {
+      tentativas++;
+      const pago = await verificarPago(id);
+      if (pago) {
+        clearInterval(tid);
+        limparUrl();
+        toast.success('Pagamento aprovado! Baixando seu currículo. 🎉');
+        setTimeout(() => baixarCurriculoSalvo(), 600);
+      } else if (tentativas >= 8) {
+        clearInterval(tid);
+        limparUrl();
+        toast('Pagamento em processamento. Assim que confirmar, é só clicar em Baixar. 🙂');
+      }
+    }, 1500);
+    return () => clearInterval(tid);
+  }, []);
 
   const toggleDark = () => setDark((v) => !v);
   const irEditor = () => setView('editor');

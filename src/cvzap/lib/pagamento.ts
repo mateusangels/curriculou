@@ -48,9 +48,11 @@ export async function iniciarCheckout(comFoto: boolean, promo = false): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ comFoto, promo }),
   });
+  if (!r.ok) throw new Error('backend indisponível');
   const { id, init_point } = await r.json();
-  sessionStorage.setItem('cvzap:pedido', id); // guarda p/ conferir ao voltar
-  window.location.href = init_point;
+  if (!init_point) throw new Error('sem init_point');
+  sessionStorage.setItem('curriculou:pedido', id); // guarda p/ conferir ao voltar
+  window.location.href = init_point; // redireciona para o Mercado Pago
 }
 
 /** Consulta no backend se o pedido foi pago (chamar ao voltar do checkout). */
