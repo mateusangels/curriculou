@@ -460,6 +460,13 @@ app.post('/api/_teste-aprovar/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+// diagnóstico rápido: diz se o app está usando o MySQL ou caiu pra memória
+app.get('/api/health', async (req, res) => {
+  let tabelas = [];
+  if (pool) { try { const [r] = await pool.query('SHOW TABLES'); tabelas = r.map((row) => Object.values(row)[0]); } catch { /* */ } }
+  res.json({ ok: true, db: pool ? 'mysql' : 'memoria', tabelas });
+});
+
 // ── Rastreamento (analytics) ──────────────────────────────────────────────────
 app.post('/api/track', async (req, res) => {
   try {
