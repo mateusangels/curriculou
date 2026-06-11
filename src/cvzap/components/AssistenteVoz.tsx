@@ -25,10 +25,10 @@ const ROTEIRO = [
 ];
 
 const EXEMPLO =
-  'Ex.: "Meu nome é Mateus dos Anjos, tenho 20 anos, sou solteiro, moro em Goiânia, Goiás. ' +
-  'Meu telefone é (61) 99822-1210, e-mail mateus arroba gmail ponto com. Quero trabalhar como atendente. ' +
-  'Trabalhei como atendente na empresa Cenix de 2023 até atualmente, era responsável pelo atendimento ao cliente. ' +
-  'Tenho ensino médio completo, curso de Excel, falo inglês intermediário. Sei trabalhar com pacote office e tenho proatividade."';
+  'Ex.: "Meu nome é Ana Paula Ribeiro, tenho 28 anos, sou casada, moro em Uberlândia, Minas Gerais. ' +
+  'Meu telefone é (34) 98765-4321, e-mail ana.ribeiro arroba gmail ponto com. Quero trabalhar como vendedora. ' +
+  'Trabalhei como auxiliar de vendas na empresa Loja Rede de 2019 a 2022, era responsável pelo atendimento e pela organização do estoque. ' +
+  'Tenho ensino superior completo, fiz curso de vendas e de Excel, falo inglês básico. Sei trabalhar com informática e tenho boa comunicação."';
 
 export default function AssistenteVoz({ onConcluir, onVoltar, dark, onToggleDark }: Props) {
   const { supported, listening, transcript, start, stop, reset } = useSpeechRecognition();
