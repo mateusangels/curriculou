@@ -467,19 +467,10 @@ app.post('/api/_teste-aprovar/:id', async (req, res) => {
 
 // diagnóstico rápido: diz se o app está usando o MySQL ou caiu pra memória
 app.get('/api/health', async (req, res) => {
-  let tabelas = [];
-  if (pool) { try { const [r] = await pool.query('SHOW TABLES'); tabelas = r.map((row) => Object.values(row)[0]); } catch (e) { dbErro = String(e.message || e); } }
-  res.json({
-    ok: true,
-    db: pool ? 'mysql' : 'memoria',
-    tabelas,
-    temDbHost: !!process.env.DB_HOST,
-    dbHost: process.env.DB_HOST || null,
-    dbHostEfetivo: process.env.DB_HOST === 'localhost' ? '127.0.0.1' : (process.env.DB_HOST || null),
-    dbName: process.env.DB_NAME || null,
-    dbUser: process.env.DB_USER || null,
-    erro: dbErro,
-  });
+  let tabelas = 0;
+  if (pool) { try { const [r] = await pool.query('SHOW TABLES'); tabelas = r.length; } catch { /* */ } }
+  // resposta pública mínima (não expõe usuário/host/erro do banco)
+  res.json({ ok: true, db: pool ? 'mysql' : 'memoria', tabelas });
 });
 
 // ── Rastreamento (analytics) ──────────────────────────────────────────────────
