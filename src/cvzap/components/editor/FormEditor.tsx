@@ -1,10 +1,11 @@
 // ── Editor em formulário (mobile): campos grandes, fáceis de tocar ───────────
 // Edita os MESMOS dados do WYSIWYG (via onChange). A folha A4 fica como prévia.
 import { useState } from 'react';
-import { Plus, Trash2, Upload, X, ArrowRight, Eye } from 'lucide-react';
+import { Plus, Trash2, Upload, X, ArrowRight, Eye, Lightbulb } from 'lucide-react';
 import type { CurriculoData, Experiencia, Formacao, Curso } from '../../types';
 import type { SectionsConfig } from '../../design/types';
 import { gerarId } from '../../engine/parsers';
+import { SUG_PERFIL, SUG_QUALIFICACOES } from '../../engine/sugestoes';
 import FotoCropper from './FotoCropper';
 
 interface Props {
@@ -57,6 +58,28 @@ function AddBtn({ onClick, children }: { onClick: () => void; children: React.Re
     </button>
   );
 }
+// frases prontas que o usuário toca para inserir no campo
+function Sugestoes({ opcoes, onEscolher }: { opcoes: string[]; onEscolher: (frase: string) => void }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div className="mt-2">
+      <button type="button" onClick={() => setAberto((v) => !v)} className="inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+        <Lightbulb className="h-4 w-4" /> {aberto ? 'Ocultar sugestões' : 'Ver sugestões (toque para usar)'}
+      </button>
+      {aberto && (
+        <div className="mt-2 space-y-1.5">
+          {opcoes.map((o, i) => (
+            <button key={i} type="button" onClick={() => onEscolher(o)}
+              className="block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-sm text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-indigo-500/40">
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemCard({ onRemover, children }: { onRemover: () => void; children: React.ReactNode }) {
   return (
     <div className="relative rounded-xl border border-slate-200 p-3 dark:border-slate-700">
@@ -69,6 +92,12 @@ function ItemCard({ onRemover, children }: { onRemover: () => void; children: Re
 export default function FormEditor({ data, onChange, sections: sec, foto, onFoto, onVerPrevia }: Props) {
   const set = (p: Partial<CurriculoData>) => onChange({ ...data, ...p });
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+
+  // insere uma frase de sugestão no campo (acrescenta ao que já existe)
+  const inserir = (campo: 'perfilProfissional' | 'qualificacoes', frase: string) => {
+    const atual = (data[campo] || '').trim();
+    set({ [campo]: atual ? `${atual} ${frase}` : frase } as Partial<CurriculoData>);
+  };
 
   const escolherFoto = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -123,6 +152,7 @@ export default function FormEditor({ data, onChange, sections: sec, foto, onFoto
       {sec.perfil && (
         <Secao titulo="Perfil profissional">
           <textarea className={`${INP} min-h-[110px] resize-y`} value={data.perfilProfissional} onChange={(e) => set({ perfilProfissional: e.target.value })} placeholder="Resumo em 2-3 frases: suas competências e experiência." />
+          <Sugestoes opcoes={SUG_PERFIL} onEscolher={(f) => inserir('perfilProfissional', f)} />
         </Secao>
       )}
 
@@ -218,6 +248,7 @@ export default function FormEditor({ data, onChange, sections: sec, foto, onFoto
       {sec.qualificacoes && (
         <Secao titulo="Qualificações e informações adicionais">
           <textarea className={`${INP} min-h-[90px] resize-y`} value={data.qualificacoes} onChange={(e) => set({ qualificacoes: e.target.value })} placeholder="Ex: Disponibilidade imediata, CNH categoria B..." />
+          <Sugestoes opcoes={SUG_QUALIFICACOES} onEscolher={(f) => inserir('qualificacoes', f)} />
         </Secao>
       )}
 

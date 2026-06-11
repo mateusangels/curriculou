@@ -25,6 +25,32 @@ export const SUG_IDIOMAS = [
   'Italiano - Básico', 'Alemão - Básico', 'Mandarim - Básico',
 ];
 
+// Frases prontas para o Perfil / Objetivo profissional (clicar para inserir)
+export const SUG_PERFIL = [
+  'Busco novos desafios em minha carreira, pois acredito que o constante aprendizado é fundamental para o crescimento profissional.',
+  'Com a minha experiência, busco contribuir com um clima organizacional positivo, valorizando os princípios da empresa e a colaboração.',
+  'Procuro oportunidade em uma empresa que valorize a inovação, sendo um espaço para o desenvolvimento de novas habilidades.',
+  'Meu atual objetivo é desempenhar as funções do meu cargo, contribuindo com minhas habilidades e desenvolvendo as competências necessárias.',
+  'Tenho ampla experiência na área e acredito que minhas habilidades vão potencializar o crescimento da empresa.',
+  'Sou iniciante na carreira. Busco uma oportunidade para mostrar minha garra, habilidades e meu talento, que só vão somar em qualquer empresa.',
+  'Busco uma vaga de estágio para aplicar meus conhecimentos e contribuir com minha habilidade e vontade de evoluir.',
+  'Tenho grande experiência profissional na área e estou em busca de uma posição para aplicar meus conhecimentos e competências.',
+  'Gostaria de ter a oportunidade de atuar nesta organização para assumir novos desafios, sempre com muita dedicação e empenho.',
+  'O que mais busco nesse início de carreira é alguém que me dê a chance de mostrar meu talento e vontade de aprender.',
+];
+
+// Frases prontas para Qualificações e informações adicionais
+export const SUG_QUALIFICACOES = [
+  'Disponibilidade para início imediato.',
+  'Disponibilidade para trabalhar em diferentes turnos e horários.',
+  'CNH categoria B.',
+  'Disponibilidade para viagens.',
+  'Disponibilidade para mudança de cidade.',
+  'Boa comunicação e facilidade de relacionamento interpessoal.',
+  'Experiência com atendimento ao público.',
+  'Cursando ensino superior na área.',
+];
+
 export const SUG_CURSOS = [
   'Excel Básico', 'Excel Intermediário', 'Excel Avançado', 'Pacote Office', 'Informática Básica',
   'Inglês', 'Espanhol', 'Atendimento ao Cliente', 'Vendas', 'Marketing Digital',
