@@ -88,9 +88,10 @@ export const SignInPage: React.FC<SignInPageProps> = ({
               <button type="submit" className="w-full rounded-2xl bg-indigo-600 py-4 font-medium text-white transition-colors hover:bg-indigo-700">Entrar</button>
             </form>
 
-            <div className="relative flex items-center justify-center">
-              <span className="w-full border-t border-slate-200 dark:border-white/10"></span>
-              <span className="absolute bg-white px-4 text-sm text-slate-400 dark:bg-slate-900">ou continue com</span>
+            <div className="flex items-center gap-3 text-sm text-slate-400">
+              <span className="h-px flex-1 bg-slate-200 dark:bg-white/15" />
+              ou continue com
+              <span className="h-px flex-1 bg-slate-200 dark:bg-white/15" />
             </div>
 
             <button onClick={onGoogleSignIn} className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 py-4 transition-colors hover:bg-slate-50 dark:border-white/10 dark:hover:bg-white/5">
