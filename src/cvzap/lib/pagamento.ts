@@ -88,3 +88,17 @@ export async function buscarPedido(id: string): Promise<PedidoResposta> {
 export async function verificarPago(id: string): Promise<boolean> {
   return (await buscarPedido(id)).pago;
 }
+
+/** Inicia a assinatura Profissional (recorrente) e redireciona ao Mercado Pago. */
+export async function iniciarAssinatura(): Promise<void> {
+  let tok: string | null = null;
+  try { tok = localStorage.getItem('curriculou:token'); } catch { /* */ }
+  const r = await fetch(`${API_URL}/api/assinar`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...(tok ? { Authorization: `Bearer ${tok}` } : {}) },
+  });
+  if (!r.ok) throw new Error('falha ao assinar');
+  const { init_point } = await r.json();
+  if (!init_point) throw new Error('sem init_point');
+  window.location.href = init_point;
+}

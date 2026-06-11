@@ -32,11 +32,13 @@ async function getMercadoPago() {
   const MP = mod.MercadoPagoConfig || mod.default?.MercadoPagoConfig;
   const Preference = mod.Preference || mod.default?.Preference;
   const Payment = mod.Payment || mod.default?.Payment;
-  return { client: new MP({ accessToken: process.env.MP_ACCESS_TOKEN }), Preference, Payment };
+  const PreApproval = mod.PreApproval || mod.default?.PreApproval;
+  return { client: new MP({ accessToken: process.env.MP_ACCESS_TOKEN }), Preference, Payment, PreApproval };
 }
 
 const PRECO_INDIVIDUAL = 4.9; // 1 download, sem marca d'água
 const PRECO_RETENCAO = 7.9;   // oferta de retenção (cancelamento)
+const PRECO_PRO_MES = 14.9;   // assinatura Profissional (mensal)
 
 // ── Banco (MySQL da Hostinger) com fallback para memória ─────────────────────
 let pool = null;
@@ -78,9 +80,12 @@ async function initDb() {
       senha_hash VARCHAR(120) NOT NULL,
       plano VARCHAR(20) NOT NULL DEFAULT 'free',
       google_id VARCHAR(60) NULL,
+      preapproval_id VARCHAR(60) NULL,
       criado_em BIGINT NOT NULL
     )`);
     try { await pool.query('ALTER TABLE usuarios ADD COLUMN google_id VARCHAR(60) NULL'); }
+    catch { /* coluna já existe */ }
+    try { await pool.query('ALTER TABLE usuarios ADD COLUMN preapproval_id VARCHAR(60) NULL'); }
     catch { /* coluna já existe */ }
     await pool.query(`CREATE TABLE IF NOT EXISTS curriculos (
       id VARCHAR(40) PRIMARY KEY,
@@ -154,6 +159,11 @@ async function criarUsuario(nome, email, senha) {
 
 const tokenDoUsuario = (u) => jwt.sign({ sub: u.id }, JWT_SECRET, { expiresIn: JWT_EXPIRA });
 const usuarioPublico = (u) => ({ id: u.id, nome: u.nome, email: u.email, plano: u.plano });
+
+async function definirPlano(userId, plano, preapprovalId) {
+  if (pool) await pool.query('UPDATE usuarios SET plano=?, preapproval_id=? WHERE id=?', [plano, preapprovalId || null, userId]);
+  else for (const u of memUsers.values()) if (u.id === userId) { u.plano = plano; u.preapproval_id = preapprovalId || null; }
+}
 
 // middleware: exige Bearer token válido; injeta req.usuario
 async function exigirAuth(req, res, next) {
@@ -257,6 +267,28 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
+// ── Assinatura Profissional (Mercado Pago — preapproval mensal) ───────────────
+app.post('/api/assinar', exigirAuth, async (req, res) => {
+  try {
+    const mp = await getMercadoPago();
+    if (!mp || !mp.PreApproval) return res.status(503).json({ erro: 'Assinatura ainda não configurada (defina MP_ACCESS_TOKEN).' });
+    const pre = await new mp.PreApproval(mp.client).create({
+      body: {
+        reason: 'Curriculou Profissional',
+        external_reference: req.usuario.id,
+        payer_email: req.usuario.email,
+        back_url: `${FRONT}/?assinado=1`,
+        auto_recurring: { frequency: 1, frequency_type: 'months', transaction_amount: PRECO_PRO_MES, currency_id: 'BRL' },
+        status: 'pending',
+      },
+    });
+    res.json({ init_point: pre.init_point });
+  } catch (e) {
+    console.error('assinar', e);
+    res.status(500).json({ erro: 'Falha ao iniciar assinatura' });
+  }
+});
+
 // ── Currículos (histórico por usuário) ────────────────────────────────────────
 const novoCurId = () => 'cur_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -349,10 +381,20 @@ app.post('/api/criar-pagamento', async (req, res) => {
 
 app.post('/api/webhook', async (req, res) => {
   try {
-    const paymentId = req.body?.data?.id || req.query['data.id'];
     const mp = await getMercadoPago();
-    if (paymentId && mp) {
-      const payment = await new mp.Payment(mp.client).get({ id: paymentId });
+    const tipo = String(req.query.type || req.query.topic || req.body?.type || '');
+    const id = req.body?.data?.id || req.query['data.id'] || req.query.id;
+    if (mp && id && (tipo.includes('preapproval') || tipo.includes('subscription'))) {
+      // assinatura: atualiza o plano do usuário conforme o status
+      const pre = await new mp.PreApproval(mp.client).get({ id });
+      const userId = pre?.external_reference;
+      if (userId) {
+        if (pre.status === 'authorized') await definirPlano(userId, 'pro', pre.id);
+        else if (pre.status === 'cancelled' || pre.status === 'paused') await definirPlano(userId, 'free', pre.id);
+      }
+    } else if (mp && id) {
+      // pagamento avulso
+      const payment = await new mp.Payment(mp.client).get({ id });
       const ref = payment?.external_reference;
       if (ref && payment?.status === 'approved') await marcarPago(ref);
     }

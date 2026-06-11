@@ -48,6 +48,29 @@ export default function CurriculouPage() {
   // carrega o usuário logado (se houver token válido)
   useEffect(() => { me().then((u) => { if (u) setUsuario(u); }); }, []);
 
+  // retorno da assinatura do Mercado Pago: ?assinado=1 -> aguarda o webhook ativar o plano
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('assinado')) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    toast.success('Assinatura recebida! Ativando seu Profissional...');
+    let n = 0;
+    const tid = window.setInterval(async () => {
+      n++;
+      const u = await me();
+      if (u) setUsuario(u);
+      if (u?.plano === 'pro') {
+        clearInterval(tid);
+        toast.success('Profissional ativo! Agora você baixa sem marca d\'água. 🎉', { duration: 9000 });
+        setView('editor');
+      } else if (n >= 6) {
+        clearInterval(tid);
+        toast('Assinatura em processamento — em instantes o Profissional será ativado.', { duration: 9000 });
+      }
+    }, 2000);
+    return () => clearInterval(tid);
+  }, []);
+
   // retorno do Mercado Pago: ?pago=<id> -> confere e baixa o PDF
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -111,7 +134,7 @@ export default function CurriculouPage() {
       ) : view === 'curriculos' ? (
         <MeusCurriculos onAbrir={abrirCurriculo} onNovo={novoCurriculo} onVoltar={irHome} />
       ) : view === 'editor' ? (
-        <CurriculouEditor onVoltar={irHome} dark={dark} onToggleDark={toggleDark} logado={!!usuario} onMeusCurriculos={irMeusCurriculos} />
+        <CurriculouEditor onVoltar={irHome} dark={dark} onToggleDark={toggleDark} logado={!!usuario} plano={usuario?.plano} onMeusCurriculos={irMeusCurriculos} onPrecisaLogin={irLogin} />
       ) : view === 'landing' ? (
         <Landing onIniciar={irEditor} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
       ) : (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { X, Check, Loader2, FileDown, Crown, ShieldCheck, Sparkles, Clock } from 'lucide-react';
-import { PRECO_INDIVIDUAL, PRECO_PRO_MES, PRECO_RETENCAO, formatarBRL, cobrar, iniciarCheckout, type Plano } from '../../lib/pagamento';
+import { PRECO_INDIVIDUAL, PRECO_PRO_MES, PRECO_RETENCAO, formatarBRL, cobrar, iniciarCheckout, iniciarAssinatura, type Plano } from '../../lib/pagamento';
 
 interface Props {
   comFoto: boolean;
@@ -9,6 +9,8 @@ interface Props {
   onBaixarGratis: () => void;  // download grátis com marca d'água
   onClose: () => void;
   onJaPaguei?: () => void;     // abre a recuperação de currículo já pago
+  logado?: boolean;
+  onPrecisaLogin?: () => void; // assinar exige conta
 }
 
 const MP_BLUE = '#009ee3';
@@ -22,7 +24,7 @@ const MOTIVOS = [
   { key: 'depois', label: 'Vou voltar depois' },
 ];
 
-export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose, onJaPaguei }: Props) {
+export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose, onJaPaguei, logado, onPrecisaLogin }: Props) {
   const [etapa, setEtapa] = useState<Etapa>('planos');
   const [valorPago, setValorPago] = useState(PRECO_INDIVIDUAL);
   const [restante, setRestante] = useState(600); // 10 min de urgência na retenção
@@ -51,9 +53,20 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
 
   const baixarGratis = () => { onBaixarGratis(); onClose(); };
 
-  const assinarPro = () => {
-    // assinatura recorrente exige conta/login (próxima fase)
-    toast('A assinatura Profissional chega junto com o login — em breve. Por enquanto, garanta o download avulso. 🙂', { duration: 7000 });
+  const assinarPro = async () => {
+    if (!logado) {
+      toast('Crie sua conta para assinar o Profissional. 🙂');
+      onPrecisaLogin?.();
+      return;
+    }
+    setEtapa('processando');
+    setValorPago(PRECO_PRO_MES);
+    try {
+      await iniciarAssinatura(); // redireciona ao Mercado Pago (sai daqui)
+    } catch {
+      toast.error('Não foi possível iniciar a assinatura agora.');
+      setEtapa('planos');
+    }
   };
 
   // tentar fechar (X / fora) → vira tela de cancelamento (pergunta o motivo)

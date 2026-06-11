@@ -18,7 +18,7 @@ import PaywallModal from './PaywallModal';
 import RecuperarModal from './RecuperarModal';
 import ChatPanel from '../ChatPanel';
 
-interface Props { onVoltar?: () => void; dark: boolean; onToggleDark: () => void; logado?: boolean; onMeusCurriculos?: () => void }
+interface Props { onVoltar?: () => void; dark: boolean; onToggleDark: () => void; logado?: boolean; plano?: string; onMeusCurriculos?: () => void; onPrecisaLogin?: () => void }
 
 const K_DESIGN = 'cvzap:design:v2';
 const K_SEC = 'cvzap:sections:v2';
@@ -30,7 +30,7 @@ function carregar<T>(key: string, fallback: T): T {
   try { const r = localStorage.getItem(key); return r ? { ...fallback, ...JSON.parse(r) } : fallback; } catch { return fallback; }
 }
 
-export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado, onMeusCurriculos }: Props) {
+export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado, plano, onMeusCurriculos, onPrecisaLogin }: Props) {
   const { data, messages, typing, iniciado, iniciar, enviar, reiniciar, atualizarDados } = useRecruiter();
 
   const [design, setDesign] = useState<DesignConfig>(() => carregar(K_DESIGN, DESIGN_PADRAO));
@@ -85,7 +85,11 @@ export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado,
     try { if (f) localStorage.setItem(K_FOTO, f); else localStorage.removeItem(K_FOTO); } catch { /* quota */ }
   }, []);
 
-  const baixar = () => setPaywall(true);
+  const ehPro = plano === 'pro';
+  const baixar = () => {
+    if (ehPro) { gerarCurriculoPDF(data, design, sections, { foto }); toast.success('Baixando seu PDF (Profissional). 🎉'); }
+    else setPaywall(true);
+  };
   const baixarPdf = () => gerarCurriculoPDF(data, design, sections, { foto });
   const baixarGratis = () => gerarCurriculoPDF(data, design, sections, { foto, marca: true });
 
@@ -198,6 +202,8 @@ export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado,
           onBaixarGratis={() => { setPaywall(false); baixarGratis(); toast('Baixando a versão grátis (com marca d\'água). Pague para remover. 🙂'); }}
           onClose={() => setPaywall(false)}
           onJaPaguei={() => { setPaywall(false); setRecuperar(true); }}
+          logado={logado}
+          onPrecisaLogin={() => { setPaywall(false); onPrecisaLogin?.(); }}
         />
       )}
 
