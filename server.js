@@ -42,6 +42,7 @@ const PRECO_PRO_MES = 14.9;   // assinatura Profissional (mensal)
 
 // ── Banco (MySQL da Hostinger) com fallback para memória ─────────────────────
 let pool = null;
+let dbErro = null;              // motivo da falha de conexão (diagnóstico)
 const mem = new Map();          // pedidos
 const memUsers = new Map();     // usuarios (email -> registro) no modo memória
 const memCurriculos = new Map(); // curriculos (id -> registro) no modo memória
@@ -51,6 +52,7 @@ const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'angelsrequires@gmail.com').toLo
 
 async function initDb() {
   if (!process.env.DB_HOST) {
+    dbErro = 'DB_HOST ausente (o .env não foi lido ou as variáveis não estão no app)';
     console.warn('⚠️  Sem DB_HOST — usando memória (pedidos somem ao reiniciar).');
     return;
   }
@@ -110,7 +112,8 @@ async function initDb() {
     )`);
     console.log('✅ MySQL conectado.');
   } catch (e) {
-    console.error('⚠️  Falha no MySQL — caindo para memória:', e.message);
+    dbErro = String(e && e.message ? e.message : e);
+    console.error('⚠️  Falha no MySQL — caindo para memória:', dbErro);
     pool = null;
   }
 }
@@ -463,8 +466,17 @@ app.post('/api/_teste-aprovar/:id', async (req, res) => {
 // diagnóstico rápido: diz se o app está usando o MySQL ou caiu pra memória
 app.get('/api/health', async (req, res) => {
   let tabelas = [];
-  if (pool) { try { const [r] = await pool.query('SHOW TABLES'); tabelas = r.map((row) => Object.values(row)[0]); } catch { /* */ } }
-  res.json({ ok: true, db: pool ? 'mysql' : 'memoria', tabelas });
+  if (pool) { try { const [r] = await pool.query('SHOW TABLES'); tabelas = r.map((row) => Object.values(row)[0]); } catch (e) { dbErro = String(e.message || e); } }
+  res.json({
+    ok: true,
+    db: pool ? 'mysql' : 'memoria',
+    tabelas,
+    temDbHost: !!process.env.DB_HOST,
+    dbHost: process.env.DB_HOST || null,
+    dbName: process.env.DB_NAME || null,
+    dbUser: process.env.DB_USER || null,
+    erro: dbErro,
+  });
 });
 
 // ── Rastreamento (analytics) ──────────────────────────────────────────────────
