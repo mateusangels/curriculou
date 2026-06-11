@@ -93,7 +93,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
         {etapa === 'sucesso' ? (
           <div className="px-6 py-12 text-center">
             <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-green-100 text-green-600"><Check className="h-9 w-9" /></div>
-            <h2 className="mt-4 text-xl font-bold">Pagamento aprovado!</h2>
+            <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">Pagamento aprovado!</h2>
             <p className="mt-1 text-slate-500">Baixando seu currículo...</p>
           </div>
         ) : etapa === 'processando' ? (
@@ -103,7 +103,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
           </div>
         ) : etapa === 'motivo' ? (
           <div className="px-6 py-6 text-center">
-            <h2 className="text-xl font-extrabold">Antes de sair...</h2>
+            <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">Antes de sair...</h2>
             <p className="mt-1 text-slate-500">O que fez você desistir agora?</p>
             <div className="mx-auto mt-5 grid max-w-sm gap-2">
               {MOTIVOS.map((m) => (
@@ -118,7 +118,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
         ) : etapa === 'retencao' ? (
           <div className="px-6 py-7 text-center">
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-amber-100 text-amber-600"><Crown className="h-7 w-7" /></div>
-            <h2 className="mt-3 text-xl font-extrabold">Oferta exclusiva para continuar sua busca</h2>
+            <h2 className="mt-3 text-xl font-extrabold text-slate-900 dark:text-white">Oferta exclusiva para continuar sua busca</h2>
             <p className="mt-1 text-slate-500">Plano Profissional com desconto pelos próximos 30 dias:</p>
             <div className="mt-4 flex items-center justify-center gap-3">
               <span className="text-lg text-slate-400 line-through">{formatarBRL(PRECO_PRO_MES)}/mês</span>
@@ -136,14 +136,14 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
         ) : (
           // ── PLANOS ──────────────────────────────────────────────────────────
           <div className="px-5 py-5 sm:px-6">
-            <h2 className="text-center text-xl font-extrabold sm:text-2xl">Baixe seu currículo profissional</h2>
+            <h2 className="text-center text-xl font-extrabold text-slate-900 dark:text-white sm:text-2xl">Baixe seu currículo profissional</h2>
             <p className="mt-1 text-center text-sm text-slate-500">Escolha como quer baixar</p>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
               {/* Gratuito */}
               <div className="flex flex-col rounded-2xl border border-slate-200 p-5 dark:border-slate-700">
-                <h3 className="font-bold">Gratuito</h3>
-                <div className="mt-1 text-2xl font-extrabold">R$ 0</div>
+                <h3 className="font-bold text-slate-900 dark:text-white">Gratuito</h3>
+                <div className="mt-1 text-2xl font-extrabold text-slate-900 dark:text-white">R$ 0</div>
                 <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
                   {['Criar e editar', 'Visualizar na tela', 'Todos os modelos'].map((b) => <Item key={b}>{b}</Item>)}
                   <li className="flex items-center gap-2 text-amber-600"><Check className="h-4 w-4" /> Download com marca d'água</li>
@@ -155,7 +155,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
 
               {/* Individual */}
               <div className="flex flex-col rounded-2xl border-2 p-5" style={{ borderColor: MP_BLUE }}>
-                <h3 className="font-bold">Individual</h3>
+                <h3 className="font-bold text-slate-900 dark:text-white">Individual</h3>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-2xl font-extrabold" style={{ color: MP_BLUE }}>{formatarBRL(PRECO_INDIVIDUAL)}</span>
                   <span className="pb-0.5 text-xs text-slate-400">único</span>
@@ -171,7 +171,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
               {/* Profissional */}
               <div className="relative flex flex-col rounded-2xl border-2 p-5" style={{ borderColor: INDIGO }}>
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full px-3 py-0.5 text-xs font-bold text-white" style={{ background: INDIGO }}>Mais Popular</span>
-                <h3 className="flex items-center gap-1.5 font-bold"><Crown className="h-4 w-4 text-amber-500" /> Profissional</h3>
+                <h3 className="flex items-center gap-1.5 font-bold text-slate-900 dark:text-white"><Crown className="h-4 w-4 text-amber-500" /> Profissional</h3>
                 <div className="mt-1 flex items-end gap-1">
                   <span className="text-2xl font-extrabold" style={{ color: INDIGO }}>{formatarBRL(PRECO_PRO_MES)}</span>
                   <span className="pb-0.5 text-xs text-slate-400">/mês</span>

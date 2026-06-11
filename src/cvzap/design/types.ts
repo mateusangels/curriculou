@@ -13,6 +13,8 @@ export interface DesignConfig {
   bgColor: string; // cor de fundo da folha
   fontSizePt: number; // 8–12
   nameScale: number; // 1.5–3.5
+  contentScale?: number; // zoom geral do conteúdo (0.6–1.15, padrão 1) — encolhe tudo pra caber na página
+  sectionScale?: Partial<Record<SectionKey, number>>; // zoom por tópico/seção (0.6–1.4, padrão 1)
   fotoTamanho?: number; // diâmetro da foto em px (padrão 116)
   headerAlign?: 'left' | 'center'; // alinhamento do nome/contato (layout single)
   headerBorder: BordaCabecalho;

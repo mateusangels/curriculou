@@ -97,7 +97,13 @@ const SVG_DEFS = `svg{fill:none;stroke:currentColor;stroke-width:1.7;stroke-line
 export function renderBody(d: CurriculoData, design: DesignConfig, sec: SectionsConfig, opts?: RenderOpts): string {
   const dual = design.layout === 'dual';
   const r = resolveDesign(design);
+  const escalas = design.sectionScale || {};
+  // zoom por tópico: embrulha a seção num bloco com `zoom` (uniforme, dentro da A4)
   const S = (cond: boolean, html: string) => (cond && html ? html : '');
+  const Z = (key: keyof typeof escalas, html: string) => {
+    const z = escalas[key] ?? 1;
+    return html && z !== 1 ? `<div style="zoom:${z}">${html}</div>` : html;
+  };
 
   const h3 = (t: string, c: string) => (c ? `<h3>${t}</h3>${c}` : '');
   const h2 = (t: string, c: string) => (c ? `<h2>${t}</h2>${c}` : '');
@@ -119,14 +125,14 @@ export function renderBody(d: CurriculoData, design: DesignConfig, sec: Sections
       <div class="cv-topo-info">${nomeCargo}${sec.contato ? `<div class="cv-single-contact">${contatoHTML(d, r.contactIcons)}</div>` : ''}</div>
     </header>`;
     const corpo = [
-      S(sec.perfil, perfil),
-      S(sec.experiencia, experiencia),
-      S(sec.educacao, educacao),
-      S(sec.habilidades, h2('Habilidades', habilidadesHTML(d, false))),
-      S(sec.idiomas, h2('Idiomas', idiomasHTML(d, false))),
-      S(sec.cursos, h2('Cursos e Certificações', cursosHTML(d))),
-      S(sec.qualificacoes, qualif),
-      S(sec.dadosPessoais, h2('Dados Pessoais', dadosHTML(d))),
+      S(sec.perfil, Z('perfil', perfil)),
+      S(sec.experiencia, Z('experiencia', experiencia)),
+      S(sec.educacao, Z('educacao', educacao)),
+      S(sec.habilidades, Z('habilidades', h2('Habilidades', habilidadesHTML(d, false)))),
+      S(sec.idiomas, Z('idiomas', h2('Idiomas', idiomasHTML(d, false)))),
+      S(sec.cursos, Z('cursos', h2('Cursos e Certificações', cursosHTML(d)))),
+      S(sec.qualificacoes, Z('qualificacoes', qualif)),
+      S(sec.dadosPessoais, Z('dadosPessoais', h2('Dados Pessoais', dadosHTML(d)))),
     ].join('');
     return `<div class="cv-root cv-topo-root">${topo}<main class="cv-main">${corpo}</main></div>`;
   }
@@ -134,35 +140,35 @@ export function renderBody(d: CurriculoData, design: DesignConfig, sec: Sections
   if (dual) {
     const side = [
       S(sec.foto, fotoHTML(d, opts)),
-      S(sec.contato, h3('Contato', contatoHTML(d, r.contactIcons))),
-      S(sec.dadosPessoais, h3('Dados Pessoais', dadosHTML(d))),
-      S(sec.habilidades, h3('Habilidades', habilidadesHTML(d, true))),
-      S(sec.idiomas, h3('Idiomas', idiomasHTML(d, true))),
-      S(sec.cursos, h3('Cursos e Certificações', cursosHTML(d))),
+      S(sec.contato, Z('contato', h3('Contato', contatoHTML(d, r.contactIcons)))),
+      S(sec.dadosPessoais, Z('dadosPessoais', h3('Dados Pessoais', dadosHTML(d)))),
+      S(sec.habilidades, Z('habilidades', h3('Habilidades', habilidadesHTML(d, true)))),
+      S(sec.idiomas, Z('idiomas', h3('Idiomas', idiomasHTML(d, true)))),
+      S(sec.cursos, Z('cursos', h3('Cursos e Certificações', cursosHTML(d)))),
     ].join('');
     const main = [
       nomeCargo,
-      S(sec.perfil, perfil),
-      S(sec.experiencia, experiencia),
-      S(sec.educacao, educacao),
-      S(sec.qualificacoes, qualif),
+      S(sec.perfil, Z('perfil', perfil)),
+      S(sec.experiencia, Z('experiencia', experiencia)),
+      S(sec.educacao, Z('educacao', educacao)),
+      S(sec.qualificacoes, Z('qualificacoes', qualif)),
     ].join('');
     return `<div class="cv-root"><aside class="cv-side">${side}</aside><main class="cv-main">${main}</main></div>`;
   }
 
   // layout single
-  const contatoLinha = sec.contato ? `<div class="cv-single-contact">${contatoHTML(d, r.contactIcons)}</div>` : '';
+  const contatoLinha = sec.contato ? Z('contato', `<div class="cv-single-contact">${contatoHTML(d, r.contactIcons)}</div>`) : '';
   const main = [
     nomeCargo,
     contatoLinha,
-    S(sec.perfil, perfil),
-    S(sec.experiencia, experiencia),
-    S(sec.educacao, educacao),
-    S(sec.habilidades, h2('Habilidades', habilidadesHTML(d, false))),
-    S(sec.idiomas, h2('Idiomas', idiomasHTML(d, false))),
-    S(sec.cursos, h2('Cursos e Certificações', cursosHTML(d))),
-    S(sec.qualificacoes, qualif),
-    S(sec.dadosPessoais, h2('Dados Pessoais', dadosHTML(d))),
+    S(sec.perfil, Z('perfil', perfil)),
+    S(sec.experiencia, Z('experiencia', experiencia)),
+    S(sec.educacao, Z('educacao', educacao)),
+    S(sec.habilidades, Z('habilidades', h2('Habilidades', habilidadesHTML(d, false)))),
+    S(sec.idiomas, Z('idiomas', h2('Idiomas', idiomasHTML(d, false)))),
+    S(sec.cursos, Z('cursos', h2('Cursos e Certificações', cursosHTML(d)))),
+    S(sec.qualificacoes, Z('qualificacoes', qualif)),
+    S(sec.dadosPessoais, Z('dadosPessoais', h2('Dados Pessoais', dadosHTML(d)))),
   ].join('');
   return `<div class="cv-root${centro}"><main class="cv-main">${main}</main></div>`;
 }

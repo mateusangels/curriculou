@@ -83,7 +83,7 @@ export default function AuthView({ onLogado, onVoltar }: Props) {
         <div className="flex min-h-[100dvh] items-center justify-center p-6">
           <form onSubmit={criarConta} className="w-full max-w-md">
             <div className="mb-6"><LogoMarca icon="h-10 w-10" text="text-2xl" /></div>
-            <h1 className="text-3xl font-bold">Criar conta</h1>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white">Criar conta</h1>
             <p className="mt-1 text-slate-500">Grátis. Leva menos de um minuto.</p>
 
             <div className="mt-6 space-y-4">

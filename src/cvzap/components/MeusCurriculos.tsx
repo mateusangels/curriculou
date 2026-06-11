@@ -52,7 +52,7 @@ export default function MeusCurriculos({ onAbrir, onNovo, onVoltar }: Props) {
       </header>
 
       <main className="mx-auto max-w-5xl px-5 py-8">
-        <h1 className="text-2xl font-extrabold">Meus currículos</h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">Meus currículos</h1>
         <p className="mt-1 text-slate-500">Abra, edite ou baixe de novo — sem precisar de código.</p>
 
         {itens === null ? (
@@ -72,7 +72,7 @@ export default function MeusCurriculos({ onAbrir, onNovo, onVoltar }: Props) {
                 <div className="flex items-start gap-3">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15"><FileText className="h-5 w-5" /></div>
                   <div className="min-w-0 flex-1">
-                    <h3 className="truncate font-bold">{c.titulo}</h3>
+                    <h3 className="truncate font-bold text-slate-900 dark:text-white">{c.titulo}</h3>
                     <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-400"><Clock className="h-3 w-3" /> {quando(c.atualizado_em)}</p>
                   </div>
                 </div>

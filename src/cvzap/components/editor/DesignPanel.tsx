@@ -80,6 +80,11 @@ export default function DesignPanel({ design, onChange, onClose }: Props) {
             onChange={(e) => set({ nameScale: +e.target.value })} className="w-28 accent-indigo-600" />
         </Linha>
 
+        <Linha label={`Zoom do currículo (${Math.round((design.contentScale ?? 1) * 100)}%)`}>
+          <input type="range" min={0.6} max={1.15} step={0.05} value={design.contentScale ?? 1}
+            onChange={(e) => set({ contentScale: +e.target.value })} className="w-28 accent-indigo-600" />
+        </Linha>
+
         <Linha label={`Tamanho da foto (${design.fotoTamanho ?? 116}px)`}>
           <input type="range" min={72} max={180} step={4} value={design.fotoTamanho ?? 116}
             onChange={(e) => set({ fotoTamanho: +e.target.value })} className="w-28 accent-indigo-600" />

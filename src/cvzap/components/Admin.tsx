@@ -78,7 +78,7 @@ export default function Admin({ onVoltar }: Props) {
   useEffect(() => { const t = setInterval(carregarEventos, 5000); return () => clearInterval(t); }, []);
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 dark:bg-[#0b1020]">
+    <div className="min-h-[100dvh] bg-slate-50 text-slate-900 dark:bg-[#0b1020] dark:text-slate-100">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-200 bg-white/90 px-5 py-3.5 backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/90">
         <button onClick={onVoltar} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300"><ArrowLeft className="h-4 w-4" /> Voltar</button>
         <LogoMarca icon="h-8 w-8" text="text-lg" />

@@ -277,7 +277,7 @@ export default function FormEditor({ data, onChange, sections: sec, foto, onFoto
       {onVerPrevia && (
         <div className="rounded-2xl border-2 border-indigo-200 bg-indigo-50 p-5 text-center dark:border-indigo-500/30 dark:bg-indigo-500/10">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-indigo-600 text-white"><Eye className="h-6 w-6" /></div>
-          <h3 className="mt-3 text-lg font-bold">Tudo preenchido?</h3>
+          <h3 className="mt-3 text-lg font-bold text-slate-900 dark:text-white">Tudo preenchido?</h3>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">Veja como seu currículo ficou e baixe em PDF.</p>
           <button onClick={onVerPrevia} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-indigo-600 py-3.5 text-base font-bold text-white hover:bg-indigo-700">
             Ver meu currículo <ArrowRight className="h-5 w-5" />

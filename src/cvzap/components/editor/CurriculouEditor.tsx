@@ -164,7 +164,9 @@ export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado,
           <div style={{ width: 794 * escala, height: folhaH ? folhaH * escala : undefined, margin: '0 auto', position: 'relative' }}>
             <div ref={folhaRef} style={{ width: 794, transform: `scale(${escala})`, transformOrigin: 'top left', position: 'absolute', top: 0, left: 0 }}>
               <EditorCanvas data={data} onChange={atualizarDados} design={design} sections={sections} foto={foto} onFoto={setFoto}
-                onFotoTamanho={(px) => setDesign((d) => ({ ...d, fotoTamanho: px }))} />
+                onFotoTamanho={(px) => setDesign((d) => ({ ...d, fotoTamanho: px }))}
+                onContentScale={(scale) => setDesign((d) => ({ ...d, contentScale: scale }))}
+                onSectionScale={(key, scale) => setDesign((d) => ({ ...d, sectionScale: { ...d.sectionScale, [key]: scale } }))} />
             </div>
           </div>
           <div className="h-8" />

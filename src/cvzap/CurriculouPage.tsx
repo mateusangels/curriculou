@@ -6,8 +6,12 @@ import SitePages from './components/SitePages';
 import AuthView from './components/AuthView';
 import MeusCurriculos from './components/MeusCurriculos';
 import Admin from './components/Admin';
+import AssistenteVoz from './components/AssistenteVoz';
 import BotaoWhatsApp from './components/BotaoWhatsApp';
 import type { SitePagina } from './components/SiteShell';
+import type { CurriculoData } from './types';
+import { DESIGN_PADRAO } from './design/presets';
+import { SECOES_PADRAO } from './design/types';
 import { buscarPedido, ULTIMO_PEDIDO_KEY } from './lib/pagamento';
 import { baixarCurriculoSalvo } from './lib/baixarSalvo';
 import { baixarDeSnapshot, aplicarSnapshot, type CvSnapshot } from './lib/snapshot';
@@ -20,7 +24,7 @@ const CUR_ID_KEY = 'curriculou:curriculoId';
 const CUR_TITULO_KEY = 'curriculou:curriculoTitulo';
 const FONTS_HREF = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap';
 
-type View = 'landing' | 'editor' | 'login' | 'curriculos' | 'admin' | SitePagina;
+type View = 'landing' | 'editor' | 'login' | 'curriculos' | 'admin' | 'ia' | SitePagina;
 
 export default function CurriculouPage() {
   const [view, setView] = useState<View>('landing');
@@ -112,7 +116,17 @@ export default function CurriculouPage() {
 
   const toggleDark = () => setDark((v) => !v);
   const irEditor = () => setView('editor');
+  const irIA = () => setView('ia');
   const irHome = () => setView('landing');
+  // conclui o assistente de voz: carrega o que foi extraído num currículo novo e abre o editor
+  const concluirIA = (data: CurriculoData) => {
+    try {
+      localStorage.removeItem(CUR_ID_KEY); localStorage.removeItem(CUR_TITULO_KEY);
+      localStorage.removeItem('cvzap:foto:v1');
+    } catch { /* */ }
+    aplicarSnapshot({ data, design: DESIGN_PADRAO, sections: SECOES_PADRAO });
+    setView('editor');
+  };
   const navegar = (p: SitePagina) => setView(p);
   const irLogin = () => setView('login');
   const aoLogar = (u: Usuario) => { setUsuario(u); setView('curriculos'); };
@@ -142,10 +156,12 @@ export default function CurriculouPage() {
         <MeusCurriculos onAbrir={abrirCurriculo} onNovo={novoCurriculo} onVoltar={irHome} />
       ) : view === 'admin' ? (
         <Admin onVoltar={irHome} />
+      ) : view === 'ia' ? (
+        <AssistenteVoz onConcluir={concluirIA} onVoltar={irHome} dark={dark} onToggleDark={toggleDark} />
       ) : view === 'editor' ? (
         <CurriculouEditor onVoltar={irHome} dark={dark} onToggleDark={toggleDark} logado={!!usuario} plano={usuario?.plano} onMeusCurriculos={irMeusCurriculos} onPrecisaLogin={irLogin} />
       ) : view === 'landing' ? (
-        <Landing onIniciar={irEditor} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
+        <Landing onIniciar={irEditor} onIniciarIA={irIA} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
       ) : (
         <SitePages pagina={view} onIniciar={irEditor} onHome={irHome} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
       )}

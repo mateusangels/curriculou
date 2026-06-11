@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   Sparkles, MousePointerClick, MessageSquareText, FileDown, Wand2, Palette,
-  LayoutGrid, ChevronDown, Star, ArrowRight,
+  LayoutGrid, ChevronDown, Star, ArrowRight, Mic,
 } from 'lucide-react';
 import { MODELOS } from '../design/presets';
 import { SECOES_PADRAO } from '../design/types';
@@ -14,6 +14,7 @@ import type { Usuario } from '../lib/auth';
 
 interface Props {
   onIniciar: () => void;
+  onIniciarIA?: () => void;
   onNavegar: (p: SitePagina) => void;
   dark: boolean;
   onToggleDark: () => void;
@@ -75,7 +76,7 @@ function MiniModelo({ idx, escala = 0.26 }: { idx: number; escala?: number }) {
   );
 }
 
-export default function Landing({ onIniciar, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos, onAdmin }: Props) {
+export default function Landing({ onIniciar, onIniciarIA, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos, onAdmin }: Props) {
   const [faq, setFaq] = useState<number | null>(0);
   const [verMais, setVerMais] = useState(false);
   const idxsModelos = verMais ? MODELOS.map((_, i) => i) : [0, 1, 3, 5, 6, 8];
@@ -104,6 +105,11 @@ export default function Landing({ onIniciar, onNavegar, dark, onToggleDark, usua
               <button onClick={onIniciar} className="inline-flex items-center gap-2 rounded-xl px-7 py-3.5 text-base font-semibold text-white shadow-lg transition hover:scale-[1.02]" style={{ background: INDIGO, boxShadow: '0 12px 30px -8px rgba(75,79,242,.5)' }}>
                 <MousePointerClick className="h-5 w-5" /> Criar um CV do zero
               </button>
+              {onIniciarIA && (
+                <button onClick={onIniciarIA} className="inline-flex items-center gap-2 rounded-xl border-2 px-6 py-3.5 text-base font-semibold transition hover:scale-[1.02]" style={{ borderColor: INDIGO, color: INDIGO }}>
+                  <Mic className="h-5 w-5" /> Fazer com IA <span className="hidden sm:inline">(por voz)</span>
+                </button>
+              )}
               <a href="#modelos" className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 px-6 py-3.5 text-base font-semibold text-slate-700 hover:bg-slate-50 dark:border-white/15 dark:text-slate-200 dark:hover:bg-white/5">
                 Ver modelos <ArrowRight className="h-4 w-4" />
               </a>
