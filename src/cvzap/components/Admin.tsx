@@ -20,9 +20,11 @@ function authHeaders() {
   const t = localStorage.getItem('curriculou:token');
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
-async function getJSON<T>(rota: string): Promise<T | null> {
-  try { const r = await fetch(`${API_URL}${rota}`, { headers: { ...authHeaders() } }); if (!r.ok) return null; return r.json(); }
-  catch { return null; }
+async function getJSON<T>(rota: string): Promise<{ status: number; data: T | null }> {
+  try {
+    const r = await fetch(`${API_URL}${rota}`, { headers: { ...authHeaders() } });
+    return { status: r.status, data: r.ok ? await r.json() : null };
+  } catch { return { status: 0, data: null }; }
 }
 
 function quando(ts: number) {
@@ -47,16 +49,28 @@ export default function Admin({ onVoltar }: Props) {
   const [resumo, setResumo] = useState<Resumo | null>(null);
   const [usuarios, setUsuarios] = useState<UsuarioAdmin[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
-  const [erro, setErro] = useState(false);
+  const [erroMsg, setErroMsg] = useState<string | null>(null);
 
   const carregar = async () => {
-    const [r, u] = await Promise.all([getJSON<Resumo>('/api/admin/resumo'), getJSON<{ usuarios: UsuarioAdmin[] }>('/api/admin/usuarios')]);
-    if (!r) { setErro(true); return; }
-    setResumo(r); setUsuarios(u?.usuarios || []);
+    const r = await getJSON<Resumo>('/api/admin/resumo');
+    if (!r.data) {
+      setErroMsg(
+        r.status === 403 ? 'Acesso restrito: entre com a conta de administrador (angelsrequires@gmail.com).'
+        : r.status === 404 ? 'O servidor ainda não tem o painel (404). Faça o Pull/Deploy na Hostinger pra atualizar.'
+        : r.status === 401 ? 'Sua sessão expirou. Saia e entre de novo.'
+        : r.status === 0 ? 'Sem conexão com o servidor.'
+        : `Falha ao carregar (erro ${r.status}).`,
+      );
+      return;
+    }
+    setErroMsg(null);
+    setResumo(r.data);
+    const u = await getJSON<{ usuarios: UsuarioAdmin[] }>('/api/admin/usuarios');
+    setUsuarios(u.data?.usuarios || []);
   };
   const carregarEventos = async () => {
     const e = await getJSON<{ eventos: Evento[] }>('/api/admin/eventos?limit=60');
-    if (e) setEventos(e.eventos || []);
+    if (e.data) setEventos(e.data.eventos || []);
   };
 
   useEffect(() => { carregar(); carregarEventos(); }, []);
@@ -75,8 +89,8 @@ export default function Admin({ onVoltar }: Props) {
         <h1 className="text-2xl font-extrabold">Painel do dono</h1>
         <p className="mt-1 text-slate-500">Métricas, cadastros e atividade ao vivo do Curriculou.</p>
 
-        {erro ? (
-          <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-500/30 dark:bg-red-500/10">Acesso restrito ou falha ao carregar. Confirme que você entrou com a conta de administrador.</div>
+        {erroMsg ? (
+          <div className="mt-8 rounded-2xl border border-red-200 bg-red-50 p-6 text-red-700 dark:border-red-500/30 dark:bg-red-500/10">{erroMsg}</div>
         ) : (
           <>
             <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">

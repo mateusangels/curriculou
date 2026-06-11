@@ -494,13 +494,12 @@ app.get('/api/admin/resumo', exigirAdmin, async (req, res) => {
     let visitantes = 0, pageviews = 0, cadastros = 0, assinantes = 0, pv24 = 0;
     const porTipo = {};
     if (pool) {
-      const [[a]] = [await pool.query("SELECT COUNT(DISTINCT visitante) c FROM eventos WHERE visitante IS NOT NULL")];
-      visitantes = a[0]?.c || 0;
-      const [[b]] = [await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview'")]; pageviews = b[0]?.c || 0;
-      const [[c]] = [await pool.query('SELECT COUNT(*) c FROM usuarios')]; cadastros = c[0]?.c || 0;
-      const [[d]] = [await pool.query("SELECT COUNT(*) c FROM usuarios WHERE plano='pro'")]; assinantes = d[0]?.c || 0;
-      const [[e]] = [await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview' AND criado_em>?", [ontem])]; pv24 = e[0]?.c || 0;
-      const [t] = await pool.query('SELECT tipo, COUNT(*) c FROM eventos GROUP BY tipo'); t.forEach((r) => { porTipo[r.tipo] = r.c; });
+      const [r1] = await pool.query('SELECT COUNT(DISTINCT visitante) c FROM eventos WHERE visitante IS NOT NULL'); visitantes = Number(r1[0]?.c || 0);
+      const [r2] = await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview'"); pageviews = Number(r2[0]?.c || 0);
+      const [r3] = await pool.query('SELECT COUNT(*) c FROM usuarios'); cadastros = Number(r3[0]?.c || 0);
+      const [r4] = await pool.query("SELECT COUNT(*) c FROM usuarios WHERE plano='pro'"); assinantes = Number(r4[0]?.c || 0);
+      const [r5] = await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview' AND criado_em>?", [ontem]); pv24 = Number(r5[0]?.c || 0);
+      const [t] = await pool.query('SELECT tipo, COUNT(*) c FROM eventos GROUP BY tipo'); t.forEach((row) => { porTipo[row.tipo] = Number(row.c); });
     } else {
       visitantes = new Set(memEventos.filter((e) => e.visitante).map((e) => e.visitante)).size;
       pageviews = memEventos.filter((e) => e.tipo === 'pageview').length;
