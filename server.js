@@ -58,8 +58,10 @@ async function initDb() {
   }
   try {
     const mysql = (await import('mysql2/promise')).default;
+    // força IPv4: "localhost" resolve para ::1 (IPv6) e o MySQL recusa (grant é IPv4)
+    const host = process.env.DB_HOST === 'localhost' ? '127.0.0.1' : process.env.DB_HOST;
     pool = mysql.createPool({
-      host: process.env.DB_HOST,
+      host,
       port: process.env.DB_PORT || 3306,
       user: process.env.DB_USER,
       password: process.env.DB_PASS,
@@ -473,6 +475,7 @@ app.get('/api/health', async (req, res) => {
     tabelas,
     temDbHost: !!process.env.DB_HOST,
     dbHost: process.env.DB_HOST || null,
+    dbHostEfetivo: process.env.DB_HOST === 'localhost' ? '127.0.0.1' : (process.env.DB_HOST || null),
     dbName: process.env.DB_NAME || null,
     dbUser: process.env.DB_USER || null,
     erro: dbErro,
