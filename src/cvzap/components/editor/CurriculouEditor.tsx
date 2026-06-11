@@ -8,6 +8,7 @@ import { useRecruiter } from '../../hooks/useRecruiter';
 import { gerarCurriculoPDF } from '../../lib/gerarCurriculoPDF';
 import { melhorarCurriculo } from '../../lib/melhorar';
 import { salvarCurriculo } from '../../lib/curriculos';
+import { track } from '../../lib/track';
 import EditorToolbar from './EditorToolbar';
 import EditorCanvas from './EditorCanvas';
 import FormEditor from './FormEditor';
@@ -87,8 +88,8 @@ export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado,
 
   const ehPro = plano === 'pro';
   const baixar = () => {
-    if (ehPro) { gerarCurriculoPDF(data, design, sections, { foto }); toast.success('Baixando seu PDF (Profissional). 🎉'); }
-    else setPaywall(true);
+    if (ehPro) { track('download', 'pro'); gerarCurriculoPDF(data, design, sections, { foto }); toast.success('Baixando seu PDF (Profissional). 🎉'); }
+    else { track('paywall_abrir'); setPaywall(true); }
   };
   const baixarPdf = () => gerarCurriculoPDF(data, design, sections, { foto });
   const baixarGratis = () => gerarCurriculoPDF(data, design, sections, { foto, marca: true });
@@ -198,8 +199,8 @@ export default function CurriculouEditor({ onVoltar, dark, onToggleDark, logado,
       {paywall && (
         <PaywallModal
           comFoto={!!foto}
-          onPago={() => { setPaywall(false); baixarPdf(); toast.success('Compra concluída! Baixando seu PDF. 🎉'); }}
-          onBaixarGratis={() => { setPaywall(false); baixarGratis(); toast('Baixando a versão grátis (com marca d\'água). Pague para remover. 🙂'); }}
+          onPago={() => { setPaywall(false); track('download', 'pago'); baixarPdf(); toast.success('Compra concluída! Baixando seu PDF. 🎉'); }}
+          onBaixarGratis={() => { setPaywall(false); track('download_gratis'); baixarGratis(); toast('Baixando a versão grátis (com marca d\'água). Pague para remover. 🙂'); }}
           onClose={() => setPaywall(false)}
           onJaPaguei={() => { setPaywall(false); setRecuperar(true); }}
           logado={logado}

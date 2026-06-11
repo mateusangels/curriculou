@@ -5,11 +5,13 @@ import Landing from './components/Landing';
 import SitePages from './components/SitePages';
 import AuthView from './components/AuthView';
 import MeusCurriculos from './components/MeusCurriculos';
+import Admin from './components/Admin';
 import type { SitePagina } from './components/SiteShell';
 import { buscarPedido, ULTIMO_PEDIDO_KEY } from './lib/pagamento';
 import { baixarCurriculoSalvo } from './lib/baixarSalvo';
 import { baixarDeSnapshot, aplicarSnapshot, type CvSnapshot } from './lib/snapshot';
 import { me, logout, type Usuario } from './lib/auth';
+import { track } from './lib/track';
 import './cvzap.css';
 
 const DARK_KEY = 'cvzap:dark';
@@ -17,7 +19,7 @@ const CUR_ID_KEY = 'curriculou:curriculoId';
 const CUR_TITULO_KEY = 'curriculou:curriculoTitulo';
 const FONTS_HREF = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Lora:wght@500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap';
 
-type View = 'landing' | 'editor' | 'login' | 'curriculos' | SitePagina;
+type View = 'landing' | 'editor' | 'login' | 'curriculos' | 'admin' | SitePagina;
 
 export default function CurriculouPage() {
   const [view, setView] = useState<View>('landing');
@@ -44,6 +46,9 @@ export default function CurriculouPage() {
 
   // rola pro topo ao trocar de página
   useEffect(() => { window.scrollTo({ top: 0 }); }, [view]);
+
+  // rastreia a navegação (analytics)
+  useEffect(() => { track('pageview', view); }, [view]);
 
   // carrega o usuário logado (se houver token válido)
   useEffect(() => { me().then((u) => { if (u) setUsuario(u); }); }, []);
@@ -125,7 +130,8 @@ export default function CurriculouPage() {
     setView('editor');
   };
 
-  const propsSite = { usuario, onEntrar: irLogin, onSair: sair, onMeusCurriculos: irMeusCurriculos };
+  const irAdmin = () => setView('admin');
+  const propsSite = { usuario, onEntrar: irLogin, onSair: sair, onMeusCurriculos: irMeusCurriculos, onAdmin: irAdmin };
 
   return (
     <div id="cvzap-root" className={dark ? 'dark' : ''}>
@@ -133,6 +139,8 @@ export default function CurriculouPage() {
         <AuthView onLogado={aoLogar} onVoltar={irHome} />
       ) : view === 'curriculos' ? (
         <MeusCurriculos onAbrir={abrirCurriculo} onNovo={novoCurriculo} onVoltar={irHome} />
+      ) : view === 'admin' ? (
+        <Admin onVoltar={irHome} />
       ) : view === 'editor' ? (
         <CurriculouEditor onVoltar={irHome} dark={dark} onToggleDark={toggleDark} logado={!!usuario} plano={usuario?.plano} onMeusCurriculos={irMeusCurriculos} onPrecisaLogin={irLogin} />
       ) : view === 'landing' ? (

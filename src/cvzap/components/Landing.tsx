@@ -21,6 +21,7 @@ interface Props {
   onEntrar?: () => void;
   onSair?: () => void;
   onMeusCurriculos?: () => void;
+  onAdmin?: () => void;
 }
 
 const A4_W = 794;
@@ -74,14 +75,14 @@ function MiniModelo({ idx, escala = 0.26 }: { idx: number; escala?: number }) {
   );
 }
 
-export default function Landing({ onIniciar, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos }: Props) {
+export default function Landing({ onIniciar, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos, onAdmin }: Props) {
   const [faq, setFaq] = useState<number | null>(0);
   const [verMais, setVerMais] = useState(false);
   const idxsModelos = verMais ? MODELOS.map((_, i) => i) : [0, 1, 3, 5, 6, 8];
 
   return (
     <div className="min-h-[100dvh] bg-white text-slate-800 dark:bg-[#0b1020] dark:text-slate-100">
-      <SiteHeader onIniciar={onIniciar} onHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} />
+      <SiteHeader onIniciar={onIniciar} onHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} onAdmin={onAdmin} />
 
       {/* HERO */}
       <section className="relative overflow-hidden">

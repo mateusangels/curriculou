@@ -14,12 +14,13 @@ interface Props {
   onEntrar?: () => void;
   onSair?: () => void;
   onMeusCurriculos?: () => void;
+  onAdmin?: () => void;
 }
 
-export default function SitePages({ pagina, onIniciar, onHome, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos }: Props) {
+export default function SitePages({ pagina, onIniciar, onHome, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos, onAdmin }: Props) {
   return (
     <div className="min-h-[100dvh] bg-white text-slate-800 dark:bg-[#0b1020] dark:text-slate-100">
-      <SiteHeader onIniciar={onIniciar} onHome={onHome} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} />
+      <SiteHeader onIniciar={onIniciar} onHome={onHome} onNavegar={onNavegar} dark={dark} onToggleDark={onToggleDark} usuario={usuario} onEntrar={onEntrar} onSair={onSair} onMeusCurriculos={onMeusCurriculos} onAdmin={onAdmin} />
       <main className="mx-auto max-w-4xl px-5 py-14">
         {pagina === 'precos' && <Precos onIniciar={onIniciar} />}
         {pagina === 'contato' && <Contato />}

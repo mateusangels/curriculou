@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { X, Check, Loader2, FileDown, Crown, ShieldCheck, Sparkles, Clock } from 'lucide-react';
 import { PRECO_INDIVIDUAL, PRECO_PRO_MES, PRECO_RETENCAO, formatarBRL, cobrar, iniciarCheckout, iniciarAssinatura, type Plano } from '../../lib/pagamento';
+import { track } from '../../lib/track';
 
 interface Props {
   comFoto: boolean;
@@ -38,6 +39,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
   const mmss = `${String(Math.floor(restante / 60)).padStart(2, '0')}:${String(restante % 60).padStart(2, '0')}`;
 
   const pagar = async (plano: Plano, valor: number) => {
+    track('checkout_inicio', plano);
     setValorPago(valor);
     setEtapa('processando');
     try {
@@ -59,6 +61,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
       onPrecisaLogin?.();
       return;
     }
+    track('assinar_inicio');
     setEtapa('processando');
     setValorPago(PRECO_PRO_MES);
     try {

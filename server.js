@@ -45,6 +45,9 @@ let pool = null;
 const mem = new Map();          // pedidos
 const memUsers = new Map();     // usuarios (email -> registro) no modo memória
 const memCurriculos = new Map(); // curriculos (id -> registro) no modo memória
+const memEventos = [];          // eventos de analytics no modo memória
+
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'angelsrequires@gmail.com').toLowerCase();
 
 async function initDb() {
   if (!process.env.DB_HOST) {
@@ -94,6 +97,16 @@ async function initDb() {
       snapshot LONGTEXT NOT NULL,
       atualizado_em BIGINT NOT NULL,
       INDEX idx_user (user_id)
+    )`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS eventos (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      tipo VARCHAR(40) NOT NULL,
+      visitante VARCHAR(40) NULL,
+      user_id VARCHAR(40) NULL,
+      dados VARCHAR(255) NULL,
+      ua VARCHAR(255) NULL,
+      criado_em BIGINT NOT NULL,
+      INDEX idx_tipo (tipo), INDEX idx_criado (criado_em)
     )`);
     console.log('✅ MySQL conectado.');
   } catch (e) {
@@ -165,6 +178,22 @@ async function definirPlano(userId, plano, preapprovalId) {
   else for (const u of memUsers.values()) if (u.id === userId) { u.plano = plano; u.preapproval_id = preapprovalId || null; }
 }
 
+// registra um evento de analytics (nunca derruba o app por causa de tracking)
+async function logEvento(tipo, { visitante = null, userId = null, dados = null, ua = null } = {}) {
+  const ev = {
+    tipo: String(tipo).slice(0, 40),
+    visitante: visitante ? String(visitante).slice(0, 40) : null,
+    user_id: userId || null,
+    dados: dados != null ? String(dados).slice(0, 255) : null,
+    ua: ua ? String(ua).slice(0, 255) : null,
+    criado_em: Date.now(),
+  };
+  try {
+    if (pool) await pool.query('INSERT INTO eventos (tipo,visitante,user_id,dados,ua,criado_em) VALUES (?,?,?,?,?,?)', [ev.tipo, ev.visitante, ev.user_id, ev.dados, ev.ua, ev.criado_em]);
+    else { memEventos.push({ id: memEventos.length + 1, ...ev }); if (memEventos.length > 5000) memEventos.shift(); }
+  } catch { /* ignora */ }
+}
+
 // middleware: exige Bearer token válido; injeta req.usuario
 async function exigirAuth(req, res, next) {
   try {
@@ -189,6 +218,7 @@ app.post('/api/auth/registrar', async (req, res) => {
     if (String(senha).length < 6) return res.status(400).json({ erro: 'A senha precisa ter ao menos 6 caracteres.' });
     if (await buscarUsuarioPorEmail(email)) return res.status(409).json({ erro: 'Já existe uma conta com esse e-mail.' });
     const u = await criarUsuario(nome, email, senha);
+    logEvento('cadastro', { userId: u.id, dados: u.email, ua: req.headers['user-agent'] });
     res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
   } catch (e) {
     console.error('registrar', e);
@@ -203,6 +233,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!u || !(await bcrypt.compare(String(senha || ''), u.senha_hash))) {
       return res.status(401).json({ erro: 'E-mail ou senha incorretos.' });
     }
+    logEvento('login', { userId: u.id, dados: u.email, ua: req.headers['user-agent'] });
     res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
   } catch (e) {
     console.error('login', e);
@@ -259,7 +290,9 @@ app.post('/api/auth/google', async (req, res) => {
     if (!idToken) return res.status(400).json({ erro: 'token ausente' });
     const payload = await verificarTokenGoogle(idToken);
     if (!payload.email) return res.status(400).json({ erro: 'Conta Google sem e-mail.' });
+    const ja = await buscarUsuarioPorEmail(payload.email);
     const u = await acharOuCriarGoogle(payload);
+    logEvento(ja ? 'login' : 'cadastro', { userId: u.id, dados: 'google:' + u.email, ua: req.headers['user-agent'] });
     res.json({ token: tokenDoUsuario(u), usuario: usuarioPublico(u) });
   } catch (e) {
     console.error('google login', e);
@@ -425,6 +458,84 @@ app.post('/api/_teste-aprovar/:id', async (req, res) => {
   if (process.env.ALLOW_TEST_APPROVE !== '1') return res.sendStatus(404);
   await marcarPago(req.params.id);
   res.json({ ok: true });
+});
+
+// ── Rastreamento (analytics) ──────────────────────────────────────────────────
+app.post('/api/track', async (req, res) => {
+  try {
+    const { tipo, visitante, dados } = req.body || {};
+    if (!tipo) return res.sendStatus(204);
+    let userId = null;
+    const h = req.headers.authorization || '';
+    if (h.startsWith('Bearer ')) { try { userId = jwt.verify(h.slice(7), JWT_SECRET).sub; } catch { /* anônimo */ } }
+    await logEvento(tipo, { visitante, userId, dados, ua: req.headers['user-agent'] });
+  } catch { /* ignora */ }
+  res.sendStatus(204);
+});
+
+// ── Admin (somente o e-mail dono) ─────────────────────────────────────────────
+function exigirAdmin(req, res, next) {
+  exigirAuth(req, res, () => {
+    if (normEmail(req.usuario.email) !== ADMIN_EMAIL) return res.status(403).json({ erro: 'acesso restrito' });
+    next();
+  });
+}
+
+async function ultimoCurriculoSnap(userId) {
+  if (pool) { const [r] = await pool.query('SELECT snapshot FROM curriculos WHERE user_id=? ORDER BY atualizado_em DESC LIMIT 1', [userId]); return r[0]?.snapshot || null; }
+  let achado = null;
+  for (const c of memCurriculos.values()) if (c.user_id === userId && (!achado || c.atualizado_em > achado.atualizado_em)) achado = c;
+  return achado?.snapshot || null;
+}
+
+app.get('/api/admin/resumo', exigirAdmin, async (req, res) => {
+  try {
+    const ontem = Date.now() - 24 * 3600 * 1000;
+    let visitantes = 0, pageviews = 0, cadastros = 0, assinantes = 0, pv24 = 0;
+    const porTipo = {};
+    if (pool) {
+      const [[a]] = [await pool.query("SELECT COUNT(DISTINCT visitante) c FROM eventos WHERE visitante IS NOT NULL")];
+      visitantes = a[0]?.c || 0;
+      const [[b]] = [await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview'")]; pageviews = b[0]?.c || 0;
+      const [[c]] = [await pool.query('SELECT COUNT(*) c FROM usuarios')]; cadastros = c[0]?.c || 0;
+      const [[d]] = [await pool.query("SELECT COUNT(*) c FROM usuarios WHERE plano='pro'")]; assinantes = d[0]?.c || 0;
+      const [[e]] = [await pool.query("SELECT COUNT(*) c FROM eventos WHERE tipo='pageview' AND criado_em>?", [ontem])]; pv24 = e[0]?.c || 0;
+      const [t] = await pool.query('SELECT tipo, COUNT(*) c FROM eventos GROUP BY tipo'); t.forEach((r) => { porTipo[r.tipo] = r.c; });
+    } else {
+      visitantes = new Set(memEventos.filter((e) => e.visitante).map((e) => e.visitante)).size;
+      pageviews = memEventos.filter((e) => e.tipo === 'pageview').length;
+      cadastros = memUsers.size;
+      assinantes = [...memUsers.values()].filter((u) => u.plano === 'pro').length;
+      pv24 = memEventos.filter((e) => e.tipo === 'pageview' && e.criado_em > ontem).length;
+      memEventos.forEach((e) => { porTipo[e.tipo] = (porTipo[e.tipo] || 0) + 1; });
+    }
+    res.json({ visitantes, pageviews, pv24, cadastros, assinantes, porTipo });
+  } catch (e) { console.error('admin resumo', e); res.status(500).json({ erro: 'falha' }); }
+});
+
+app.get('/api/admin/usuarios', exigirAdmin, async (req, res) => {
+  try {
+    let users;
+    if (pool) { const [r] = await pool.query('SELECT id,nome,email,plano,google_id,criado_em FROM usuarios ORDER BY criado_em DESC LIMIT 500'); users = r; }
+    else users = [...memUsers.values()].map((u) => ({ id: u.id, nome: u.nome, email: u.email, plano: u.plano, google_id: u.google_id, criado_em: u.criado_em })).sort((a, b) => b.criado_em - a.criado_em);
+    for (const u of users) {
+      u.google = !!u.google_id; delete u.google_id;
+      const snap = await ultimoCurriculoSnap(u.id);
+      if (snap) { try { const d = JSON.parse(snap).data || {}; u.telefone = d.telefone || ''; } catch { u.telefone = ''; } }
+      else u.telefone = '';
+    }
+    res.json({ usuarios: users });
+  } catch (e) { console.error('admin usuarios', e); res.status(500).json({ erro: 'falha' }); }
+});
+
+app.get('/api/admin/eventos', exigirAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(200, Number(req.query.limit) || 60);
+    let evs;
+    if (pool) { const [r] = await pool.query('SELECT tipo,visitante,user_id,dados,criado_em FROM eventos ORDER BY id DESC LIMIT ?', [limit]); evs = r; }
+    else evs = memEventos.slice(-limit).reverse();
+    res.json({ eventos: evs });
+  } catch (e) { console.error('admin eventos', e); res.status(500).json({ erro: 'falha' }); }
 });
 
 // ── Front (SPA) ───────────────────────────────────────────────────────────────

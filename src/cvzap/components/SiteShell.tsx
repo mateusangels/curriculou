@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Moon, Sun, LogOut, Menu, X } from 'lucide-react';
 import { LogoMarca, LogoIcon } from './Logo';
 import type { Usuario } from '../lib/auth';
+import { ADMIN_EMAIL } from '../lib/track';
 
 export const INDIGO = '#4b4ff2';
 export type SitePagina = 'precos' | 'contato' | 'sobre' | 'termos' | 'privacidade';
@@ -16,12 +17,14 @@ interface HeaderProps {
   onEntrar?: () => void;
   onSair?: () => void;
   onMeusCurriculos?: () => void;
+  onAdmin?: () => void;
 }
 
-export function SiteHeader({ onIniciar, onHome, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos }: HeaderProps) {
+export function SiteHeader({ onIniciar, onHome, onNavegar, dark, onToggleDark, usuario, onEntrar, onSair, onMeusCurriculos, onAdmin }: HeaderProps) {
   const [menu, setMenu] = useState(false);
   const fechar = () => setMenu(false);
   const linkM = 'rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10';
+  const isAdmin = !!usuario && usuario.email.toLowerCase() === ADMIN_EMAIL;
 
   return (
     <header className="sticky top-0 z-40 border-b border-slate-100 bg-white/90 backdrop-blur dark:border-white/10 dark:bg-[#0b1020]/90">
@@ -45,6 +48,7 @@ export function SiteHeader({ onIniciar, onHome, onNavegar, dark, onToggleDark, u
           </button>
           {usuario ? (
             <div className="flex items-center gap-1">
+              {isAdmin && <button onClick={onAdmin} className="rounded-full px-3 py-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 dark:hover:bg-white/10">Admin</button>}
               <button onClick={onMeusCurriculos} className="rounded-full px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10">Meus currículos</button>
               {onSair && <button onClick={onSair} title="Sair" className="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10"><LogOut className="h-5 w-5" /></button>}
             </div>
@@ -73,6 +77,7 @@ export function SiteHeader({ onIniciar, onHome, onNavegar, dark, onToggleDark, u
             <div className="my-1 border-t border-slate-100 dark:border-white/10" />
             {usuario ? (
               <>
+                {isAdmin && <button className={`${linkM} font-bold text-indigo-600`} onClick={() => { onAdmin?.(); fechar(); }}>Painel admin</button>}
                 <button className={linkM} onClick={() => { onMeusCurriculos?.(); fechar(); }}>Meus currículos</button>
                 {onSair && <button className={linkM} onClick={() => { onSair(); fechar(); }}>Sair ({usuario.nome.split(' ')[0]})</button>}
               </>
