@@ -95,7 +95,7 @@ function Contato() {
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
     const corpo = encodeURIComponent(`Nome: ${form.nome}\nE-mail: ${form.email}\n\n${form.msg}`);
-    window.location.href = `mailto:contato@curriculou.com.br?subject=Contato%20Curriculou&body=${corpo}`;
+    window.location.href = `mailto:equipenexor@gmail.com?subject=Contato%20Curriculou&body=${corpo}`;
     setEnviado(true);
   };
   const inp = 'w-full rounded-lg border border-slate-200 bg-transparent px-3 py-2.5 text-sm outline-none focus:border-indigo-500 dark:border-white/15';
@@ -108,7 +108,7 @@ function Contato() {
             <Mail className="h-5 w-5" style={{ color: INDIGO }} />
             <div>
               <p className="font-semibold">E-mail</p>
-              <p className="text-sm text-slate-500">contato@curriculou.com.br</p>
+              <p className="text-sm text-slate-500">equipenexor@gmail.com</p>
             </div>
           </div>
           <div className="flex items-start gap-3 rounded-xl border border-slate-200 p-4 dark:border-white/10">
@@ -195,6 +195,6 @@ function Privacidade() {
     { h: '2. Como usamos', p: 'As informações são usadas exclusivamente para montar e exibir o seu currículo na tela e gerar o PDF.' },
     { h: '3. Compartilhamento', p: 'Não vendemos nem compartilhamos seus dados pessoais com terceiros.' },
     { h: '4. Foto', p: 'A foto que você adiciona é processada no próprio navegador e armazenada localmente, junto ao currículo.' },
-    { h: '5. Contato', p: 'Em caso de dúvidas sobre privacidade, escreva para contato@curriculou.com.br.' },
+    { h: '5. Contato', p: 'Em caso de dúvidas sobre privacidade, escreva para equipenexor@gmail.com.' },
   ]} />;
 }

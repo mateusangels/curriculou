@@ -1,7 +1,7 @@
 // ── Editor em formulário (mobile): campos grandes, fáceis de tocar ───────────
 // Edita os MESMOS dados do WYSIWYG (via onChange). A folha A4 fica como prévia.
 import { useState } from 'react';
-import { Plus, Trash2, Upload, X, ArrowRight, Eye, Lightbulb } from 'lucide-react';
+import { Plus, Trash2, Upload, X, ArrowRight, Eye, Lightbulb, Calendar } from 'lucide-react';
 import type { CurriculoData, Experiencia, Formacao, Curso } from '../../types';
 import type { SectionsConfig } from '../../design/types';
 import { gerarId } from '../../engine/parsers';
@@ -33,6 +33,27 @@ function maskData(v: string): string {
   if (d.length <= 2) return d;
   if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
   return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
+}
+// conversões para o seletor nativo de data (yyyy-mm-dd <-> dd/mm/aaaa)
+function brToYmd(v: string): string { const m = (v || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/); return m ? `${m[3]}-${m[2]}-${m[1]}` : ''; }
+function ymdToBr(v: string): string { const m = (v || '').match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1]}` : v; }
+
+// campo de data: digita (dd/mm/aaaa) OU toca no calendário pra escolher
+function CampoData({ value, onChange, disabled, placeholder }: { value: string; onChange: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+  return (
+    <div className="relative">
+      <input className={`${INP} pr-11`} inputMode="numeric" disabled={disabled} value={value}
+        onChange={(e) => onChange(maskData(e.target.value))} placeholder={placeholder || 'dd/mm/aaaa'} />
+      {!disabled && (
+        <>
+          <Calendar className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+          {/* input nativo de data sobreposto ao ícone: tocar abre o calendário do aparelho */}
+          <input type="date" aria-label="Escolher no calendário" value={brToYmd(value)} onChange={(e) => onChange(ymdToBr(e.target.value))}
+            className="absolute right-0 top-0 h-full w-12 cursor-pointer opacity-0" />
+        </>
+      )}
+    </div>
+  );
 }
 
 function Secao({ titulo, children }: { titulo: string; children: React.ReactNode }) {
@@ -163,8 +184,8 @@ export default function FormEditor({ data, onChange, sections: sec, foto, onFoto
               <Campo label="Cargo"><input className={INP} value={e.cargo} onChange={(ev) => setExp(e.id, { cargo: ev.target.value })} placeholder="Ex: Vendedor" /></Campo>
               <Campo label="Empresa"><input className={INP} value={e.empresa} onChange={(ev) => setExp(e.id, { empresa: ev.target.value })} placeholder="Nome da empresa" /></Campo>
               <div className="grid grid-cols-2 gap-3">
-                <Campo label="Início"><input className={INP} value={e.inicio} onChange={(ev) => setExp(e.id, { inicio: maskData(ev.target.value) })} placeholder="mm/aaaa" inputMode="numeric" /></Campo>
-                <Campo label="Fim"><input className={INP} disabled={e.atual} value={e.atual ? 'Atual' : e.fim} onChange={(ev) => setExp(e.id, { fim: maskData(ev.target.value) })} placeholder="mm/aaaa" inputMode="numeric" /></Campo>
+                <Campo label="Início"><CampoData value={e.inicio} onChange={(v) => setExp(e.id, { inicio: v })} /></Campo>
+                <Campo label="Fim"><CampoData value={e.atual ? 'Atual' : e.fim} disabled={e.atual} onChange={(v) => setExp(e.id, { fim: v })} /></Campo>
               </div>
               <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
                 <input type="checkbox" className="h-4 w-4" checked={e.atual} onChange={(ev) => setExp(e.id, { atual: ev.target.checked, fim: ev.target.checked ? '' : e.fim })} /> Trabalho aqui atualmente
@@ -184,7 +205,7 @@ export default function FormEditor({ data, onChange, sections: sec, foto, onFoto
               <Campo label="Instituição"><input className={INP} value={f.instituicao} onChange={(ev) => setEdu(f.id, { instituicao: ev.target.value })} placeholder="Escola / Universidade" /></Campo>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2"><Campo label="Curso (opcional)"><input className={INP} value={f.curso} onChange={(ev) => setEdu(f.id, { curso: ev.target.value })} placeholder="Ex: Administração" /></Campo></div>
-                <Campo label="Ano"><input className={INP} inputMode="numeric" value={f.anoConclusao} onChange={(ev) => setEdu(f.id, { anoConclusao: ev.target.value.replace(/\D/g, '').slice(0, 4) })} placeholder="2024" /></Campo>
+                <Campo label="Conclusão"><CampoData value={f.anoConclusao} onChange={(v) => setEdu(f.id, { anoConclusao: v })} /></Campo>
               </div>
             </ItemCard>
           ))}

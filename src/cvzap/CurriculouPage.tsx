@@ -6,6 +6,7 @@ import SitePages from './components/SitePages';
 import AuthView from './components/AuthView';
 import MeusCurriculos from './components/MeusCurriculos';
 import Admin from './components/Admin';
+import BotaoWhatsApp from './components/BotaoWhatsApp';
 import type { SitePagina } from './components/SiteShell';
 import { buscarPedido, ULTIMO_PEDIDO_KEY } from './lib/pagamento';
 import { baixarCurriculoSalvo } from './lib/baixarSalvo';
@@ -148,6 +149,7 @@ export default function CurriculouPage() {
       ) : (
         <SitePages pagina={view} onIniciar={irEditor} onHome={irHome} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
       )}
+      <BotaoWhatsApp />
     </div>
   );
 }
