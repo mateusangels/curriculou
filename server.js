@@ -75,10 +75,16 @@ async function initDb() {
       valor DECIMAL(10,2) NOT NULL,
       com_foto TINYINT NOT NULL DEFAULT 0,
       snapshot LONGTEXT NULL,
+      email VARCHAR(190) NULL,
+      email_enviado TINYINT NOT NULL DEFAULT 0,
       criado_em BIGINT NOT NULL
     )`);
-    // migra tabelas antigas que ainda não têm a coluna snapshot
+    // migra tabelas antigas que ainda não têm as colunas novas
     try { await pool.query('ALTER TABLE pedidos ADD COLUMN snapshot LONGTEXT NULL'); }
+    catch { /* coluna já existe */ }
+    try { await pool.query('ALTER TABLE pedidos ADD COLUMN email VARCHAR(190) NULL'); }
+    catch { /* coluna já existe */ }
+    try { await pool.query('ALTER TABLE pedidos ADD COLUMN email_enviado TINYINT NOT NULL DEFAULT 0'); }
     catch { /* coluna já existe */ }
     await pool.query(`CREATE TABLE IF NOT EXISTS usuarios (
       id VARCHAR(40) PRIMARY KEY,
@@ -120,10 +126,11 @@ async function initDb() {
   }
 }
 
-async function salvarPedido(id, valor, comFoto, snapshot) {
+async function salvarPedido(id, valor, comFoto, snapshot, email) {
   const snapStr = snapshot ? JSON.stringify(snapshot) : null;
-  if (pool) await pool.query('INSERT INTO pedidos (id,pago,valor,com_foto,snapshot,criado_em) VALUES (?,?,?,?,?,?)', [id, 0, valor, comFoto ? 1 : 0, snapStr, Date.now()]);
-  else mem.set(id, { pago: false, valor, comFoto, snapshot: snapStr });
+  const mail = email ? String(email).trim().slice(0, 190) : null;
+  if (pool) await pool.query('INSERT INTO pedidos (id,pago,valor,com_foto,snapshot,email,criado_em) VALUES (?,?,?,?,?,?,?)', [id, 0, valor, comFoto ? 1 : 0, snapStr, mail, Date.now()]);
+  else mem.set(id, { pago: false, valor, comFoto, snapshot: snapStr, email: mail, email_enviado: false });
 }
 async function marcarPago(id) {
   if (pool) await pool.query('UPDATE pedidos SET pago=1 WHERE id=?', [id]);
@@ -148,9 +155,116 @@ async function buscarPedido(id) {
   return { pago, snapshot };
 }
 
+// Rede de segurança p/ Pix/boleto: consulta o Mercado Pago direto pelo
+// external_reference (= id do pedido). Se já houver pagamento aprovado, marca
+// como pago. Assim o currículo libera mesmo que o webhook não chegue ou atrase.
+async function conferirPagamentoNoMP(id) {
+  try {
+    const mp = await getMercadoPago();
+    if (!mp) return false;
+    const r = await new mp.Payment(mp.client).search({ options: { external_reference: id } });
+    const aprovado = (r?.results || []).some((p) => p?.status === 'approved');
+    if (aprovado) await aoConfirmarPagamento(id);
+    return aprovado;
+  } catch (e) {
+    console.error('conferirPagamentoNoMP', e?.message || e);
+    return false;
+  }
+}
+
 const novoId = () => 'cv_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const novoUserId = () => 'usr_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const FRONT = process.env.FRONTEND_URL || '';
+
+// ── E-mail (nodemailer) ───────────────────────────────────────────────────────
+// Plugável: só envia se as variáveis SMTP_* estiverem definidas no .env.
+// Sem elas, o app funciona normalmente — apenas não dispara o e-mail.
+let _mailer = null;
+async function getMailer() {
+  if (_mailer !== null) return _mailer || null;
+  if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+    _mailer = false; // configuração ausente — desliga o envio
+    return null;
+  }
+  try {
+    const nodemailer = (await import('nodemailer')).default;
+    _mailer = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: String(process.env.SMTP_SECURE || '') === '1' || Number(process.env.SMTP_PORT) === 465,
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+    });
+    return _mailer;
+  } catch (e) {
+    console.error('getMailer', e?.message || e);
+    _mailer = false;
+    return null;
+  }
+}
+
+// Lê os campos do pedido relevantes para o e-mail (email + se já foi enviado).
+async function dadosEmailPedido(id) {
+  if (pool) {
+    const [r] = await pool.query('SELECT email, email_enviado FROM pedidos WHERE id=?', [id]);
+    if (r[0]) return { email: r[0].email, enviado: !!r[0].email_enviado };
+    return null;
+  }
+  const p = mem.get(id);
+  return p ? { email: p.email, enviado: !!p.email_enviado } : null;
+}
+async function marcarEmailEnviado(id) {
+  if (pool) await pool.query('UPDATE pedidos SET email_enviado=1 WHERE id=?', [id]);
+  else { const p = mem.get(id); if (p) p.email_enviado = true; }
+}
+
+// Envia o e-mail do currículo pago (uma única vez por pedido).
+async function enviarEmailPedido(id) {
+  try {
+    const dados = await dadosEmailPedido(id);
+    if (!dados || !dados.email || dados.enviado) return;
+    const mailer = await getMailer();
+    if (!mailer) return; // SMTP não configurado
+    const from = process.env.SMTP_FROM || process.env.SMTP_USER;
+    const link = `${FRONT}/?pago=${encodeURIComponent(id)}`;
+    await mailer.sendMail({
+      from: `Curriculou <${from}>`,
+      to: dados.email,
+      subject: 'Seu currículo está pronto! 🎉',
+      html: `
+        <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0f172a">
+          <h1 style="font-size:22px;margin:0 0 8px">Pagamento confirmado! 🎉</h1>
+          <p style="font-size:15px;line-height:1.5;color:#334155">
+            Seu currículo profissional, sem marca d'água, está liberado. Clique no botão
+            abaixo para baixar quando quiser — vale em qualquer aparelho.
+          </p>
+          <p style="text-align:center;margin:24px 0">
+            <a href="${link}" style="background:#4b4ff2;color:#fff;text-decoration:none;padding:14px 28px;border-radius:12px;font-weight:700;display:inline-block">
+              Baixar meu currículo
+            </a>
+          </p>
+          <p style="font-size:13px;color:#64748b">
+            Guarde também o seu código de pedido — com ele você baixa de novo na opção
+            <b>"Já paguei"</b> do site:<br>
+            <span style="font-family:monospace;font-size:15px;color:#0f172a">${id}</span>
+          </p>
+          <p style="font-size:15px;line-height:1.5;color:#334155;margin-top:20px">
+            Esperamos que você conquiste a vaga que deseja. Boa sorte! 💙
+          </p>
+          <p style="font-size:12px;color:#94a3b8;margin-top:24px">Curriculou — by NEXOR</p>
+        </div>`,
+    });
+    await marcarEmailEnviado(id);
+  } catch (e) {
+    console.error('enviarEmailPedido', e?.message || e);
+  }
+}
+
+// Ponto único de confirmação de um pagamento avulso: marca como pago e dispara o
+// e-mail (idempotente — pode ser chamado pelo webhook e pela conferência no MP).
+async function aoConfirmarPagamento(id) {
+  await marcarPago(id);
+  await enviarEmailPedido(id);
+}
 
 // ── Usuários ────────────────────────────────────────────────────────────────
 const normEmail = (e) => String(e || '').trim().toLowerCase();
@@ -388,19 +502,21 @@ app.delete('/api/curriculos/:id', exigirAuth, async (req, res) => {
 // ── API ───────────────────────────────────────────────────────────────────────
 app.post('/api/criar-pagamento', async (req, res) => {
   try {
-    const { plano = 'individual', snapshot = null } = req.body || {};
+    const { plano = 'individual', snapshot = null, email = null } = req.body || {};
     const valor = plano === 'retencao' ? PRECO_RETENCAO : PRECO_INDIVIDUAL;
     const titulo = plano === 'retencao' ? 'Curriculou — oferta 30 dias' : 'Currículo Curriculou (PDF sem marca d\'água)';
     const mp = await getMercadoPago();
     if (!mp) return res.status(503).json({ erro: 'Pagamento ainda não configurado (defina MP_ACCESS_TOKEN).' });
 
+    const emailValido = typeof email === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) ? email.trim() : null;
     const id = novoId();
-    await salvarPedido(id, valor, plano === 'retencao', snapshot);
+    await salvarPedido(id, valor, plano === 'retencao', snapshot, emailValido);
 
     const pref = await new mp.Preference(mp.client).create({
       body: {
         items: [{ id: 'curriculo', title: titulo, quantity: 1, unit_price: Number(valor), currency_id: 'BRL' }],
         external_reference: id,
+        ...(emailValido ? { payer: { email: emailValido } } : {}),
         notification_url: `${process.env.BACKEND_URL || FRONT}/api/webhook`,
         back_urls: {
           success: `${FRONT}/?pago=${id}`,
@@ -434,7 +550,7 @@ app.post('/api/webhook', async (req, res) => {
       // pagamento avulso
       const payment = await new mp.Payment(mp.client).get({ id });
       const ref = payment?.external_reference;
-      if (ref && payment?.status === 'approved') await marcarPago(ref);
+      if (ref && payment?.status === 'approved') await aoConfirmarPagamento(ref);
     }
     res.sendStatus(200);
   } catch (e) {
@@ -448,9 +564,16 @@ app.get('/api/status/:id', async (req, res) => {
 });
 
 // Pedido completo: { pago, snapshot } — usado para recuperar/baixar o currículo.
+// Se ainda não consta pago (webhook não chegou), confere direto no Mercado Pago
+// antes de responder — assim o Pix libera mesmo sem depender do webhook.
 app.get('/api/pedido/:id', async (req, res) => {
   try {
-    res.json(await buscarPedido(req.params.id));
+    let pedido = await buscarPedido(req.params.id);
+    if (!pedido.pago) {
+      const aprovado = await conferirPagamentoNoMP(req.params.id);
+      if (aprovado) pedido = await buscarPedido(req.params.id);
+    }
+    res.json(pedido);
   } catch (e) {
     console.error('pedido', e);
     res.status(500).json({ pago: false });
@@ -461,7 +584,7 @@ app.get('/api/pedido/:id', async (req, res) => {
 // um buraco de dinheiro. Habilite com ALLOW_TEST_APPROVE=1 só em ambiente local.
 app.post('/api/_teste-aprovar/:id', async (req, res) => {
   if (process.env.ALLOW_TEST_APPROVE !== '1') return res.sendStatus(404);
-  await marcarPago(req.params.id);
+  await aoConfirmarPagamento(req.params.id);
   res.json({ ok: true });
 });
 

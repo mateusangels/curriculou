@@ -8,6 +8,7 @@ import MeusCurriculos from './components/MeusCurriculos';
 import Admin from './components/Admin';
 import AssistenteVoz from './components/AssistenteVoz';
 import BotaoWhatsApp from './components/BotaoWhatsApp';
+import CelebracaoPagamento from './components/CelebracaoPagamento';
 import type { SitePagina } from './components/SiteShell';
 import type { CurriculoData } from './types';
 import { DESIGN_PADRAO } from './design/presets';
@@ -29,6 +30,7 @@ type View = 'landing' | 'editor' | 'login' | 'curriculos' | 'admin' | 'ia' | Sit
 export default function CurriculouPage() {
   const [view, setView] = useState<View>('landing');
   const [usuario, setUsuario] = useState<Usuario | null>(null);
+  const [celebrar, setCelebrar] = useState(false);
   const [dark, setDark] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const saved = localStorage.getItem(DARK_KEY);
@@ -81,36 +83,50 @@ export default function CurriculouPage() {
     return () => clearInterval(tid);
   }, []);
 
-  // retorno do Mercado Pago: ?pago=<id> -> confere e baixa o PDF
+  // retorno do Mercado Pago:
+  //   ?pago=<id>     -> cartão aprovado na hora (auto_return)
+  //   ?pendente=<id> -> Pix/boleto: o usuário ainda vai pagar (ou acabou de pagar)
+  //                     e a confirmação chega depois, pelo webhook. Aqui só fazemos
+  //                     polling mais paciente até o pagamento cair.
+  //   ?falhou=<id>   -> recusado
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const id = params.get('pago');
+    const id = params.get('pago') || params.get('pendente');
+    const pendente = !params.get('pago') && !!params.get('pendente');
     const limparUrl = () => window.history.replaceState({}, '', window.location.pathname);
     if (!id) {
       if (params.get('falhou')) { toast.error('Pagamento não concluído. Você pode tentar de novo.'); setView('editor'); limparUrl(); }
       return;
     }
-    // guarda o código para o cliente conseguir recuperar depois
+    // guarda o código para o cliente conseguir recuperar depois (vale também p/ Pix
+    // pendente — é o que alimenta o "Já paguei" caso a confirmação demore).
     try { localStorage.setItem(ULTIMO_PEDIDO_KEY, id); } catch { /* quota */ }
     setView('editor');
+    if (pendente) {
+      toast('Pix gerado! Assim que o pagamento cair, seu currículo libera sozinho aqui. ⏳', { duration: 9000 });
+    }
+    // Pix pode demorar de segundos a alguns minutos; por isso aguardamos bem mais
+    // tempo no retorno pendente do que no cartão (aprovado na hora).
     let tentativas = 0;
+    const maxTentativas = pendente ? 40 : 8;   // ~2min no Pix, ~12s no cartão
+    const intervalo = pendente ? 3000 : 1500;
     const tid = window.setInterval(async () => {
       tentativas++;
       const { pago, snapshot } = await buscarPedido(id);
       if (pago) {
         clearInterval(tid);
         limparUrl();
-        toast.success('Pagamento aprovado! Baixando seu currículo. 🎉');
+        setCelebrar(true); // 🎉 abre a tela de comemoração
         // prefere o currículo guardado no servidor (vale em qualquer aparelho);
         // se por algum motivo não houver, cai para o que está salvo no navegador.
         setTimeout(() => { if (snapshot) baixarDeSnapshot(snapshot); else baixarCurriculoSalvo(); }, 600);
         setTimeout(() => toast(`Guarde seu código: ${id} — com ele você baixa de novo quando quiser.`, { duration: 12000 }), 1600);
-      } else if (tentativas >= 8) {
+      } else if (tentativas >= maxTentativas) {
         clearInterval(tid);
         limparUrl();
         toast(`Pagamento em processamento. Assim que confirmar, use o código ${id} em "Já paguei" para baixar. 🙂`, { duration: 12000 });
       }
-    }, 1500);
+    }, intervalo);
     return () => clearInterval(tid);
   }, []);
 
@@ -166,6 +182,7 @@ export default function CurriculouPage() {
         <SitePages pagina={view} onIniciar={irEditor} onHome={irHome} onNavegar={navegar} dark={dark} onToggleDark={toggleDark} {...propsSite} />
       )}
       <BotaoWhatsApp />
+      {celebrar && <CelebracaoPagamento nome={usuario?.nome} onClose={() => setCelebrar(false)} />}
     </div>
   );
 }

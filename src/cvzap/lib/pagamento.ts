@@ -51,14 +51,15 @@ export const API_URL = (import.meta.env.VITE_API_URL as string | undefined) || '
 export const ULTIMO_PEDIDO_KEY = 'curriculou:ultimoPedido';
 
 /** Cria a preferência no backend e redireciona para o Checkout Pro do Mercado Pago. */
-export async function iniciarCheckout(plano: Plano = 'individual'): Promise<void> {
+export async function iniciarCheckout(plano: Plano = 'individual', email?: string): Promise<void> {
   // envia o currículo junto para que ele fique guardado no servidor e possa ser
   // recuperado mesmo que o cliente troque de aparelho ou limpe o navegador.
+  // o e-mail (opcional) recebe o currículo/código assim que o pagamento confirma.
   const snapshot = coletarSnapshot();
   const r = await fetch(`${API_URL}/api/criar-pagamento`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ plano, snapshot }),
+    body: JSON.stringify({ plano, snapshot, email: email || null }),
   });
   if (!r.ok) throw new Error('backend indisponível');
   const { id, init_point } = await r.json();

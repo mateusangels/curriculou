@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { X, Check, Loader2, FileDown, Crown, ShieldCheck, Sparkles, Clock } from 'lucide-react';
+import { X, Check, Loader2, FileDown, Crown, ShieldCheck, Sparkles, Clock, Mail } from 'lucide-react';
 import { PRECO_INDIVIDUAL, PRECO_PRO_MES, PRECO_RETENCAO, formatarBRL, cobrar, iniciarCheckout, iniciarAssinatura, type Plano } from '../../lib/pagamento';
 import { track } from '../../lib/track';
 
@@ -16,7 +16,8 @@ interface Props {
 
 const MP_BLUE = '#009ee3';
 const INDIGO = '#4b4ff2';
-type Etapa = 'planos' | 'processando' | 'sucesso' | 'motivo' | 'retencao';
+type Etapa = 'planos' | 'email' | 'processando' | 'sucesso' | 'motivo' | 'retencao';
+const emailValido = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
 
 const MOTIVOS = [
   { key: 'caro', label: 'Está caro' },
@@ -28,6 +29,8 @@ const MOTIVOS = [
 export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose, onJaPaguei, logado, onPrecisaLogin }: Props) {
   const [etapa, setEtapa] = useState<Etapa>('planos');
   const [valorPago, setValorPago] = useState(PRECO_INDIVIDUAL);
+  const [email, setEmail] = useState('');
+  const [planoSel, setPlanoSel] = useState<{ plano: Plano; valor: number }>({ plano: 'individual', valor: PRECO_INDIVIDUAL });
   const [restante, setRestante] = useState(600); // 10 min de urgência na retenção
 
   // contador regressivo da oferta de retenção
@@ -38,12 +41,19 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
   }, [etapa]);
   const mmss = `${String(Math.floor(restante / 60)).padStart(2, '0')}:${String(restante % 60).padStart(2, '0')}`;
 
-  const pagar = async (plano: Plano, valor: number) => {
+  // antes de pagar, pede o e-mail (opcional) para enviar o currículo/código.
+  const irParaEmail = (plano: Plano, valor: number) => {
+    setPlanoSel({ plano, valor });
+    setValorPago(valor);
+    setEtapa('email');
+  };
+
+  const pagar = async (plano: Plano, valor: number, emailArg?: string) => {
     track('checkout_inicio', plano);
     setValorPago(valor);
     setEtapa('processando');
     try {
-      await iniciarCheckout(plano); // redireciona ao Mercado Pago (sai daqui)
+      await iniciarCheckout(plano, emailArg); // redireciona ao Mercado Pago (sai daqui)
       return;
     } catch {
       // sem backend/token (ambiente local) → modo demonstração
@@ -96,6 +106,38 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
             <h2 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">Pagamento aprovado!</h2>
             <p className="mt-1 text-slate-500">Baixando seu currículo...</p>
           </div>
+        ) : etapa === 'email' ? (
+          <div className="px-6 py-8">
+            <div className="mx-auto max-w-sm text-center">
+              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ background: 'rgba(75,79,242,0.12)', color: INDIGO }}>
+                <Mail className="h-7 w-7" />
+              </div>
+              <h2 className="mt-3 text-xl font-extrabold text-slate-900 dark:text-white">Pra onde enviamos seu currículo?</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Assim que o pagamento confirmar (o Pix pode levar alguns minutos), mandamos seu currículo e o código de recuperação por e-mail — assim você nunca perde o acesso.
+              </p>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && emailValido(email)) pagar(planoSel.plano, planoSel.valor, email); }}
+                placeholder="seu@email.com"
+                autoFocus
+                className="mt-4 w-full rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none focus:border-sky-500 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              />
+              <button
+                onClick={() => pagar(planoSel.plano, planoSel.valor, email)}
+                disabled={!emailValido(email)}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                style={{ background: MP_BLUE }}
+              >
+                <ShieldCheck className="h-4 w-4" /> Ir para o pagamento — {formatarBRL(planoSel.valor)}
+              </button>
+              <button onClick={() => pagar(planoSel.plano, planoSel.valor)} className="mt-3 text-sm text-slate-400 hover:text-slate-600">
+                Prefiro não informar e-mail
+              </button>
+            </div>
+          </div>
         ) : etapa === 'processando' ? (
           <div className="px-6 py-12 text-center">
             <Loader2 className="mx-auto h-10 w-10 animate-spin" style={{ color: MP_BLUE }} />
@@ -128,7 +170,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
             <div className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-sm font-bold text-red-600 dark:bg-red-500/10">
               <Clock className="h-4 w-4" /> Oferta expira em {mmss}
             </div>
-            <button onClick={() => pagar('retencao', PRECO_RETENCAO)} className="mt-5 w-full rounded-xl py-3.5 font-bold text-white" style={{ background: INDIGO }}>
+            <button onClick={() => irParaEmail('retencao', PRECO_RETENCAO)} className="mt-5 w-full rounded-xl py-3.5 font-bold text-white" style={{ background: INDIGO }}>
               Aproveitar por {formatarBRL(PRECO_RETENCAO)}
             </button>
             <button onClick={onClose} className="mt-2 w-full text-sm text-slate-400 hover:text-slate-600">Não, obrigado</button>
@@ -163,7 +205,7 @@ export default function PaywallModal({ comFoto, onPago, onBaixarGratis, onClose,
                 <ul className="mt-3 flex-1 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
                   {['1 download em PDF', 'Sem marca d\'água', comFoto ? 'Com a sua foto' : 'Foto incluída', 'Currículo ATS Friendly'].map((b) => <Item key={b}>{b}</Item>)}
                 </ul>
-                <button onClick={() => pagar('individual', PRECO_INDIVIDUAL)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white" style={{ background: MP_BLUE }}>
+                <button onClick={() => irParaEmail('individual', PRECO_INDIVIDUAL)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold text-white" style={{ background: MP_BLUE }}>
                   <FileDown className="h-4 w-4" /> Pagar e baixar
                 </button>
               </div>
